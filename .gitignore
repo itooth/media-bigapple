@@ -1,0 +1,15 @@
+.DS_Store
+.agents/
+.bigapple/
+.claude/
+ara/
+artifacts/
+generated-events/
+generated-events-v2/
+npm-cache/
+validation/
+案例测试文件夹/
+public/
+node_modules/
+.rollback-download/
+*.log
