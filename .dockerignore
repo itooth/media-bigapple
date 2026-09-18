@@ -1,0 +1,11 @@
+.git
+node_modules
+.env*
+.data
+.catalog-build
+dist-server
+artifacts
+validation
+*.log
+.release
+npm-cache

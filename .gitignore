@@ -13,3 +13,9 @@ public/
 node_modules/
 .rollback-download/
 *.log
+.env*
+!.env.example
+.data/
+.catalog-build/
+dist-server/
+.release/

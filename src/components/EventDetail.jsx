@@ -49,10 +49,10 @@ export default function EventDetail({ event, onGallery, onProductionGallery, onM
 
       {detail.productions.length > 0 ? (
         <section className="detail-section production-section" aria-labelledby="production-title">
-          <SectionHeading onMore={detail.productionGallery.length > detail.productions.length ? onProductionGallery : null}><span id="production-title">BigApple 用户案例</span></SectionHeading>
+          <SectionHeading onMore={detail.productionGallery.length > detail.productions.length ? onProductionGallery : null}><span id="production-title">用户案例</span></SectionHeading>
           <JustifiedGallery
             items={detail.productions}
-            label="BigApple 作品精选"
+            label="作品精选"
             targetHeight={225}
             fitToWidth
             onOpen={(item) => setProductionLightboxIndex(detail.productions.indexOf(item))}
