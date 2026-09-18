@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openStore } from './store.mjs';
 import { saveLogo } from './logos.mjs';
+import { respond } from './response.mjs';
 
 const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -38,7 +39,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
   const cookieName = secureCookies ? '__Host-ba_admin' : 'ba_admin';
   const cookie = (token, age) => `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? '; Secure' : ''}`;
   const metadata = events.map((e) => ({ id: e.uid, title: e.partner, date: e.sourceDate }));
-  const send = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
+  const send = (res, status, data) => respond(res.req, res, status, 'application/json; charset=utf-8', JSON.stringify(data));
   const getSession = (req) => {
     const token = req.headers.cookie?.split(';').map((p) => p.trim()).find((p) => p.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
     if (!token) return null;
@@ -76,6 +77,18 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       const method = req.method;
       if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: store.events().length > 0 });
       if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: store.events() });
+      const brandPage = pathname.match(/^\/api\/sites\/(\d+)\/page$/);
+      if (brandPage && ['GET', 'HEAD'].includes(method)) {
+        const record = store.get(brandPage[1]);
+        if (!record) throw failure(404, '这个页面暂时不存在');
+        const escape = (text) => text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+        const name = escape(record.name);
+        const html = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8')
+          .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${name}</title>`)
+          .replace(/<meta name="description" content="[^"]*"\s*\/?>/i, () => `<meta name="description" content="${name}">`)
+          .replace('</head>', '<meta name="brand-site" content="true"></head>');
+        return respond(req, res, 200, 'text/html; charset=utf-8', html);
+      }
       const publicMatch = pathname.match(/^\/api\/sites\/(\d+)$/);
       if (publicMatch && method === 'GET') {
         const record = store.get(publicMatch[1]);
@@ -118,6 +131,15 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
           if (result.conflict) throw failure(409, '此新增操作已保存，请刷新后编辑');
           return send(res, 201, result.record);
         }
+        const domainMatch = pathname.match(/^\/api\/admin\/resellers\/(\d+)\/domain$/);
+        if (domainMatch && method === 'PUT') {
+          if (!store.get(domainMatch[1])) throw failure(404, '代理商不存在');
+          const { hostname } = await jsonBody(req);
+          if (typeof hostname !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.bigapple\.work$/.test(hostname) || ['media.bigapple.work', 'api.bigapple.work'].includes(hostname)) throw failure(400, '请填写已部署的代理商子域名');
+          const record = store.bindDomain(domainMatch[1], hostname);
+          if (!record) throw failure(409, '这个域名已绑定其他代理商');
+          return send(res, 200, record);
+        }
         const match = pathname.match(/^\/api\/admin\/resellers\/(\d+)$/);
         if (match && method === 'PUT') {
           const body = await jsonBody(req); const value = validate(body);
@@ -131,6 +153,14 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       }
       if (pathname.startsWith('/api/')) throw failure(404, '接口不存在');
       if (!['GET', 'HEAD'].includes(method)) throw failure(405, '不支持的操作');
+      const oldLink = pathname.match(/^\/(\d+)(\/.*)?$/);
+      if (oldLink) {
+        const record = store.get(oldLink[1]);
+        if (record?.publicUrl) {
+          res.writeHead(302, { Location: record.publicUrl + (oldLink[2] || '/') + new URL(req.url, 'http://localhost').search });
+          return res.end();
+        }
+      }
       if (/^\/logos\/[a-f0-9]{64}\.png$/.test(pathname)) {
         const file = path.join(dataDir, 'logos', path.basename(pathname));
         if (!fs.existsSync(file)) throw failure(404, '图片不存在');
@@ -139,8 +169,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       }
       // Single-file Vite output. No filesystem path is derived from the request.
       const html = fs.readFileSync(path.join(distDir, 'index.html'));
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(method === 'HEAD' ? undefined : html);
+      respond(req, res, 200, 'text/html; charset=utf-8', html);
     } catch (error) {
       if (!res.headersSent) send(res, error.status || 500, { error: error.status ? error.message : '操作未完成，请稍后重试' });
       else res.end();

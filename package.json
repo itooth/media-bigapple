@@ -12,6 +12,7 @@
     "test": "node --test scripts/activity-selection.test.mjs tests/*.test.mjs",
     "db:backup": "node scripts/backup-data.mjs",
     "release:prepare": "node scripts/prepare-release.mjs",
+    "release:gateways": "node scripts/prepare-gateways.mjs",
     "preview": "node server/index.mjs"
   },
   "engines": { "node": ">=24.0.0" },

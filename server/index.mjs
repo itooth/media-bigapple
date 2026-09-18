@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApplication } from './app.mjs';
 import { initializeDatabase } from './bootstrap.mjs';
+import { DatabaseSync } from 'node:sqlite';
+import { backupData } from '../scripts/backup-data.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const options = {
@@ -14,6 +16,15 @@ const options = {
 };
 if (!options.adminPassword || options.adminPassword.length < 4 || options.adminPassword.length > 512 || options.adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
 if (options.secureCookies && !process.env.BIGAPPLE_DATA_DIR) throw new Error('生产环境必须配置 BIGAPPLE_DATA_DIR 到持久化卷');
+const databaseFile = path.join(options.dataDir, 'resellers.sqlite');
+if (fs.existsSync(databaseFile)) {
+  const database = new DatabaseSync(databaseFile, { readOnly: true });
+  const version = database.prepare('PRAGMA user_version').get().user_version; database.close();
+  if (version < 2) {
+    const backupDir = path.join(options.dataDir, 'backups', `before-domains-${new Date().toISOString().replaceAll(':', '-')}`);
+    console.log('Database backup:', await backupData(options.dataDir, backupDir));
+  }
+}
 console.log('Database ready:', await initializeDatabase({ ...options, seedDir: path.join(root, 'bootstrap') }));
 const server = createApplication(options);
 server.listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log(`BigApple Events listening on port ${server.address().port}`));

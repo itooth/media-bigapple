@@ -7,7 +7,7 @@ export function openStore(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = new DatabaseSync(path.join(dataDir, 'resellers.sqlite'));
   db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
-  if (db.prepare('PRAGMA user_version').get().user_version > 1) { db.close(); throw new Error('数据库版本高于当前程序，请使用匹配的版本'); }
+  if (db.prepare('PRAGMA user_version').get().user_version > 2) { db.close(); throw new Error('数据库版本高于当前程序，请使用匹配的版本'); }
   db.exec(`BEGIN IMMEDIATE;
     CREATE TABLE IF NOT EXISTS resellers (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, logo_url TEXT NOT NULL DEFAULT '',
@@ -16,6 +16,9 @@ export function openStore(dataDir) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS logos (url TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS reseller_domains (
+      reseller_id INTEGER PRIMARY KEY REFERENCES resellers(id), hostname TEXT NOT NULL UNIQUE
+    );
     CREATE TABLE IF NOT EXISTS activities (
       uid TEXT PRIMARY KEY, payload TEXT NOT NULL, position INTEGER NOT NULL,
       active INTEGER NOT NULL DEFAULT 1
@@ -24,12 +27,22 @@ export function openStore(dataDir) {
     CREATE TABLE IF NOT EXISTS bootstrap_receipts (key TEXT PRIMARY KEY, reseller_id INTEGER NOT NULL REFERENCES resellers(id));
     INSERT INTO sqlite_sequence(name,seq) SELECT 'resellers',6023
       WHERE NOT EXISTS(SELECT 1 FROM sqlite_sequence WHERE name='resellers');
-    PRAGMA user_version=1; COMMIT;`);
-  const record = (row) => row ? { id: String(row.id), name: row.name, logoUrl: row.logo_url, activityIds: JSON.parse(row.activity_ids), version: row.version } : null;
+    PRAGMA user_version=2; COMMIT;`);
+  const record = (row) => {
+    if (!row) return null;
+    const domain = db.prepare('SELECT hostname FROM reseller_domains WHERE reseller_id=?').get(row.id);
+    return { id: String(row.id), name: row.name, logoUrl: row.logo_url, activityIds: JSON.parse(row.activity_ids), version: row.version, publicUrl: domain ? `https://${domain.hostname}` : '' };
+  };
   return {
     close: () => db.close(),
     list: () => db.prepare('SELECT * FROM resellers ORDER BY id').all().map(record),
     get: (id) => record(db.prepare('SELECT * FROM resellers WHERE id=?').get(id)),
+    bindDomain(id, hostname) {
+      const owner = db.prepare('SELECT reseller_id FROM reseller_domains WHERE hostname=?').get(hostname);
+      if (owner && String(owner.reseller_id) !== String(id)) return null;
+      db.prepare('INSERT INTO reseller_domains(reseller_id,hostname) VALUES (?,?) ON CONFLICT(reseller_id) DO UPDATE SET hostname=excluded.hostname').run(id, hostname);
+      return this.get(id);
+    },
     // Release catalog is authoritative for activity content; reseller selections
     // are separate and are never reset by a new release.
     syncCatalog(events) {

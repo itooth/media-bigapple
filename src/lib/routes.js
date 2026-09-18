@@ -1,5 +1,6 @@
-export function parseRoute(pathname) {
+export function parseRoute(pathname, { branded = false } = {}) {
   const path = pathname.replace(/\/$/, '') || '/';
+  if (branded && (path === '/admin' || /^\/\d+(?=\/|$)/.test(path))) return { page: 'not-found', tenant: null, eventId: null, tag: null };
   if (path === '/admin') return { page: 'admin', tenant: null };
   const prefix = path.match(/^\/(\d+)(?=\/|$)/);
   const tenant = prefix?.[1] || null;
