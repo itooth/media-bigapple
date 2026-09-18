@@ -4,6 +4,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 import fs from 'node:fs';
 import path from 'node:path';
 import { mediaIndex } from './src/data/mediaIndex.generated.js';
+import contentSnapshot from './src/data/siteContent.snapshot.json' with { type: 'json' };
 
 // 前端只认索引：案例封面在不在，查索引，不再查本地图片目录。
 // 索引由 scripts/build-media-index.mjs 从「网站压缩素材」生成，是自足的快照。
@@ -334,7 +335,7 @@ const resolvedVirtualSocialLinksId = `\0${virtualSocialLinksId}`;
 
 function readActivityManifests() {
   const result = [];
-  if (!fs.existsSync(mediaRoot)) return result;
+  if (!fs.existsSync(mediaRoot)) return contentSnapshot.activityManifests;
   for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const manifestPath = path.join(mediaRoot, entry.name, 'manifest.json');
@@ -388,7 +389,7 @@ function cleanSocialLabel(value, url) {
 
 function readSocialLinks() {
   const result = {};
-  if (!fs.existsSync(mediaRoot)) return result;
+  if (!fs.existsSync(mediaRoot)) return contentSnapshot.socialLinks;
   for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const directory = path.join(mediaRoot, entry.name);
@@ -426,14 +427,39 @@ function readSocialLinks() {
 }
 
 function readAichongCases() {
+  if (!fs.existsSync(mediaRoot)) return contentSnapshot.aichongCases;
   return aichongFolder ? readCaseMedia(aichongFolder) : [];
+}
+
+function currentCaseMedia() {
+  if (!fs.existsSync(mediaRoot)) return contentSnapshot.caseMedia;
+  const result = {};
+  for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    result[entry.name] = readCaseMedia(entry.name);
+    const manifestPath = path.join(mediaRoot, entry.name, 'manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
+      if (manifest.id) result[manifest.id] = result[entry.name];
+    }
+  }
+  return result;
 }
 
 function mediaLibraryIndex() {
   return {
     name: 'media-library-index',
+    buildStart() {
+      // Refresh the portable snapshot on the material owner's computer. Elsewhere
+      // use the checked-in snapshot; never silently build an empty archive.
+      const activityManifests = readActivityManifests();
+      if (!activityManifests.length) throw new Error('活动资料为空，构建已停止');
+      if (fs.existsSync(mediaRoot)) fs.writeFileSync('src/data/siteContent.snapshot.json', JSON.stringify({
+        activityManifests, caseMedia: currentCaseMedia(), aichongCases: readAichongCases(), socialLinks: readSocialLinks(),
+      }, null, 2) + '\n');
+    },
     configureServer(server) {
-      const manifestFiles = fs.readdirSync(mediaRoot, { withFileTypes: true })
+      const manifestFiles = (fs.existsSync(mediaRoot) ? fs.readdirSync(mediaRoot, { withFileTypes: true }) : [])
         .filter((entry) => entry.isDirectory())
         .map((entry) => path.join(mediaRoot, entry.name, 'manifest.json'));
       const watchTargets = [
@@ -472,20 +498,7 @@ function mediaLibraryIndex() {
       if (id === resolvedVirtualSocialLinksId) return `export default ${JSON.stringify(readSocialLinks())};`;
       if (id === resolvedVirtualAichongCasesId) return `export default ${JSON.stringify(readAichongCases())};`;
       if (id === resolvedVirtualCaseMediaId) {
-        const result = {};
-        if (fs.existsSync(mediaRoot)) for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
-          if (entry.isDirectory()) {
-            result[entry.name] = readCaseMedia(entry.name);
-            const manifestPath = path.join(mediaRoot, entry.name, 'manifest.json');
-            if (fs.existsSync(manifestPath)) {
-              try {
-                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
-                if (manifest.id) result[manifest.id] = result[entry.name];
-              } catch {}
-            }
-          }
-        }
-        return `export default ${JSON.stringify(result)};`;
+        return `export default ${JSON.stringify(currentCaseMedia())};`;
       }
     },
   };
@@ -498,6 +511,7 @@ function guardBundledImages(limitBytes = 100 * 1024) {
     name: 'guard-bundled-images',
     apply: 'build',
     closeBundle() {
+      if (process.env.CATALOG_BUILD) return;
       const output = path.resolve(process.cwd(), 'dist', 'index.html');
       if (!fs.existsSync(output)) return;
       const html = fs.readFileSync(output, 'utf8');
@@ -515,6 +529,7 @@ export default defineConfig({
   // Local previews serve media through middleware. Deploy builds can point this
   // at a prepared public directory containing only the selected activities.
   publicDir: process.env.VITE_PUBLIC_DIR || false,
+  server: { proxy: { '/api': 'http://127.0.0.1:3001', '/logos': 'http://127.0.0.1:3001' } },
   plugins: [react(), mediaLibraryIndex(), localMediaLibrary(), viteSingleFile(), guardBundledImages()],
   build: {
     cssCodeSplit: false,

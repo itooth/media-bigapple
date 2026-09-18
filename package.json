@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "node scripts/build-app.mjs",
+    "build:catalog": "node scripts/build-app.mjs --catalog-only",
+    "start": "node server/index.mjs",
+    "dev:api": "PORT=3001 node server/index.mjs",
+    "test": "node --test scripts/activity-selection.test.mjs tests/*.test.mjs",
+    "preview": "node server/index.mjs"
   },
+  "engines": { "node": ">=24.0.0" },
   "dependencies": {
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",

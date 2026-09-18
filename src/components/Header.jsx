@@ -16,7 +16,7 @@ function NavButton({ active, children, ...props }) {
   );
 }
 
-export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandClick }) {
+export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandClick, brand }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const selectNav = (target) => {
@@ -32,9 +32,9 @@ export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandCl
   return (
     <header className="site-header">
       <div className="header-inner shell">
-        <button className="brand-button" type="button" aria-label="返回活动列表" onClick={onBrandClick ?? (() => selectNav('events'))}>
-          <img src={logo} alt="BigApple 标志" width="40" height="40" />
-          <span>BigApple Events</span>
+        <button className={`brand-button${brand ? ' has-custom-brand' : ''}`} type="button" aria-label="返回活动列表" onClick={onBrandClick ?? (() => selectNav('events'))}>
+          {brand && !brand.logoUrl ? <span className="brand-placeholder" aria-hidden="true">{brand.name.slice(0, 1)}</span> : <img src={brand ? brand.logoUrl : logo} alt={`${brand?.name || 'BigApple'} 标志`} width="40" height="40" />}
+          <span>{brand?.name || 'BigApple Events'}</span>
         </button>
 
         <nav className="desktop-nav" aria-label="主导航">
