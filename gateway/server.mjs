@@ -1,6 +1,5 @@
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
-import fs from 'node:fs';
 import { respond } from '../server/response.mjs';
 
 // A fixed public entrance: no catalog, database, credentials or frontend copy.
@@ -40,8 +39,7 @@ export function createGateway({ origin, resellerId, timeoutMs = 20000 }) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const config = JSON.parse(fs.readFileSync(new URL('./config.json', import.meta.url)));
-  const server = createGateway(config);
-  server.listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log('Brand gateway ready'));
+  const server = createGateway({ origin: process.env.BRAND_ORIGIN, resellerId: process.env.BRAND_RESELLER_ID });
+  server.listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log(`Brand gateway ready on ${server.address().port}`));
   for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => process.exit(0)));
 }

@@ -10,9 +10,8 @@ for (const { slug, resellerId } of sites) {
   const dir = path.join(destination, slug);
   fs.mkdirSync(path.join(dir, 'gateway'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'server'));
-  fs.copyFileSync(path.join(root, 'gateway/Dockerfile'), path.join(dir, 'Dockerfile'));
+  fs.writeFileSync(path.join(dir, 'Dockerfile'), fs.readFileSync(path.join(root, 'gateway/Dockerfile'), 'utf8').replace('__RESELLER_ID__', resellerId));
   fs.copyFileSync(path.join(root, 'gateway/server.mjs'), path.join(dir, 'gateway/server.mjs'));
   fs.copyFileSync(path.join(root, 'server/response.mjs'), path.join(dir, 'server/response.mjs'));
-  fs.writeFileSync(path.join(dir, 'gateway/config.json'), JSON.stringify({ origin: 'https://media.bigapple.work', resellerId }));
   console.log(`${slug}: ${dir}`);
 }

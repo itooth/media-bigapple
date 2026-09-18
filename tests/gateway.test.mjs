@@ -2,7 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
+import { spawn } from 'node:child_process';
 import { createGateway } from '../gateway/server.mjs';
+
+test('deployed process uses each entrance runtime ID instead of shared configuration files', async (t) => {
+  const upstream = http.createServer((req, res) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ path: req.url })); });
+  upstream.listen(0, '127.0.0.1'); await once(upstream, 'listening');
+  t.after(() => new Promise((resolve) => upstream.close(resolve)));
+  for (const id of ['6024', '6025', '6026']) {
+    const child = spawn(process.execPath, ['gateway/server.mjs'], { env: { ...process.env, PORT: '0', BRAND_ORIGIN: `http://127.0.0.1:${upstream.address().port}`, BRAND_RESELLER_ID: id }, stdio: ['ignore', 'pipe', 'pipe'] });
+    try {
+      const [chunk] = await once(child.stdout, 'data', { signal: AbortSignal.timeout(5000) });
+      const port = chunk.toString().match(/ready on (\d+)/)?.[1]; assert.ok(port);
+      const response = await fetch(`http://127.0.0.1:${port}/api/site`);
+      assert.deepEqual(await response.json(), { path: `/api/sites/${id}` });
+    } finally { const stopped = once(child, 'exit'); child.kill(); await stopped; }
+  }
+});
 
 async function fixture(t, handler) {
   const upstream = http.createServer(handler); upstream.listen(0, '127.0.0.1'); await once(upstream, 'listening');
