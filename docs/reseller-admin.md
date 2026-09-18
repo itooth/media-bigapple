@@ -39,7 +39,7 @@
 
 | 名称 | 作用 |
 | --- | --- |
-| `ADMIN_PASSWORD` | 至少 12 位的管理员密码，使用平台 Secrets 设置，必填 |
+| `ADMIN_PASSWORD` | 4–512 位的管理员密码，使用平台 Secrets 设置，必填 |
 | `PORT` | HTTP 端口，默认 3000；平台会注入 |
 | `BIGAPPLE_DATA_DIR` | 生产环境必填，平台注入的持久化目录 `/data`；本地默认 `.data/` |
 | `APP_ORIGIN` | 可选的完整公开来源，例如 `https://media.bigapple.work`，不得带路径或结尾斜杠；用于请求来源校验 |

@@ -12,7 +12,7 @@ const options = {
   secureCookies: process.env.NODE_ENV === 'production', origin: process.env.APP_ORIGIN || '',
   storageUrl: process.env.BIGAPPLE_STORAGE_URL, storageToken: process.env.BIGAPPLE_STORAGE_TOKEN,
 };
-if (!options.adminPassword || options.adminPassword.length < 12 || options.adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置至少 12 位的管理员密码');
+if (!options.adminPassword || options.adminPassword.length < 4 || options.adminPassword.length > 512 || options.adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
 if (options.secureCookies && !process.env.BIGAPPLE_DATA_DIR) throw new Error('生产环境必须配置 BIGAPPLE_DATA_DIR 到持久化卷');
 console.log('Database ready:', await initializeDatabase({ ...options, seedDir: path.join(root, 'bootstrap') }));
 const server = createApplication(options);

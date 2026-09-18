@@ -78,7 +78,7 @@ Node.js 服务 ─────── SQLite /data/resellers.sqlite
 ```bash
 npm ci --include=dev
 npm run build
-# 先在本机环境中设置 ADMIN_PASSWORD（至少12位）；不要把密码提交进仓库。
+# 先在本机环境中设置 ADMIN_PASSWORD（4–512位）；不要把密码提交进仓库。
 npm start
 ```
 

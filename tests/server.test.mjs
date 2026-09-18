@@ -26,11 +26,18 @@ async function fixture(t, extra = {}) {
     const response = await fetch(base + url, { method, headers: { ...(cookie ? { Cookie: cookie } : {}), ...(method !== 'GET' ? { 'X-Admin-Request': '1', 'Content-Type': 'application/json' } : {}), ...headers }, ...(body === undefined ? {} : { body: typeof body === 'string' || body instanceof Buffer ? body : JSON.stringify(body) }) });
     return response;
   };
-  const login = async () => { const response = await request('/api/admin/login', { method: 'POST', body: { password } }); assert.equal(response.status, 200); cookie = response.headers.get('set-cookie').split(';')[0]; return response; };
+  const login = async () => { const response = await request('/api/admin/login', { method: 'POST', body: { password: extra.adminPassword ?? password } }); assert.equal(response.status, 200); cookie = response.headers.get('set-cookie').split(';')[0]; return response; };
   t.after(async () => { await new Promise((resolve) => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }); });
   return { request, login, restart: async () => { await new Promise((resolve) => server.close(resolve)); base = await start(); }, dataDir: dir };
 }
 const createBody = (clientKey = 'a-fixed-client-key-0001') => ({ clientKey, name: 'Polo Events', logoUrl: '', activityIds: events.map((e) => e.uid) });
+
+test('a configured four-character password authenticates and wrong passwords remain rejected', async (t) => {
+  const f = await fixture(t, { adminPassword: 'test' });
+  assert.equal((await f.request('/api/admin/login', { method: 'POST', body: { password: 'wrong' } })).status, 401);
+  await f.login();
+  assert.equal((await f.request('/api/admin/resellers')).status, 200);
+});
 
 test('login, protected writes, CSRF checks and logout', async (t) => {
   const f = await fixture(t);

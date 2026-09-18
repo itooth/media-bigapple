@@ -25,7 +25,7 @@ async function jsonBody(req) {
 }
 
 export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '' }) {
-  if (!adminPassword || adminPassword.length < 12 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置至少 12 位的管理员密码');
+  if (!adminPassword || adminPassword.length < 4 || adminPassword.length > 512 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
   if (!events.length) throw new Error('活动目录为空');
   const store = openStore(dataDir);
   try { store.syncCatalog(events); events = store.events(); }
