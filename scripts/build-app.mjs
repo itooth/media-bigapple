@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { readSeeds } from '../server/bootstrap.mjs';
 
 function vite(args, env = {}) {
   const result = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', ...args], { stdio: 'inherit', env: { ...process.env, ...env } });
@@ -13,4 +14,5 @@ if (!allEvents.length || new Set(allEvents.map((e) => e.uid)).size !== allEvents
 fs.mkdirSync('dist-server', { recursive: true });
 fs.writeFileSync('dist-server/events.json', JSON.stringify(allEvents));
 console.log(`Catalog: ${allEvents.length} activities, ${allEvents.reduce((n, e) => n + e.detail.productionGallery.length, 0)} works`);
+console.log(`Launch configuration: ${readSeeds(path.resolve('bootstrap'), allEvents).length} resellers validated`);
 if (!process.argv.includes('--catalog-only')) vite(['build']);

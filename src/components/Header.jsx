@@ -39,9 +39,6 @@ export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandCl
 
         <nav className="desktop-nav" aria-label="主导航">
           <NavButton active={activeNav === 'events'} onClick={() => { selectNav('events'); onBrandClick?.(); }}>Events</NavButton>
-          <NavButton active={activeNav === 'partners'} onClick={() => selectNav('partners')}>Partners</NavButton>
-          <NavButton active={activeNav === 'about'} onClick={() => selectNav('about')}>About</NavButton>
-          <NavButton disabled>Newsroom</NavButton>
           <span className="nav-divider" aria-hidden="true" />
           <button className="search-trigger icon-text-button" type="button" onClick={openSearch}>
             <Search aria-hidden="true" />
@@ -63,9 +60,6 @@ export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandCl
       {mobileOpen ? (
         <nav className="mobile-nav" id="mobile-nav" aria-label="移动端导航">
           <NavButton active={activeNav === 'events'} onClick={() => { selectNav('events'); onBrandClick?.(); }}>Events</NavButton>
-          <NavButton active={activeNav === 'partners'} onClick={() => selectNav('partners')}>Partners</NavButton>
-          <NavButton active={activeNav === 'about'} onClick={() => selectNav('about')}>About</NavButton>
-          <NavButton disabled>Newsroom</NavButton>
           <NavButton onClick={openSearch}>Search</NavButton>
         </nav>
       ) : null}

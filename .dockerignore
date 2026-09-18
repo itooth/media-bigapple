@@ -7,3 +7,5 @@ dist-server
 artifacts
 validation
 *.log
+.release
+npm-cache

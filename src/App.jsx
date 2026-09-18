@@ -185,8 +185,6 @@ function Archive({ route, navigate, site, onAdmin }) {
               ) : null}
             </div>
           </div>
-          {activeNav === 'about' ? <div className="inline-notice">{brand?.name || 'BigApple Events'} · 合作活动档案</div> : null}
-          {activeNav === 'partners' ? <div className="inline-notice">正在按合作伙伴浏览活动</div> : null}
           {filteredMonths.length > 0 ? (
             filteredMonths.map((month) => <MonthSection key={month.label} month={month} onOpen={openEvent} />)
           ) : (

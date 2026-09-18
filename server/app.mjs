@@ -3,10 +3,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { openStore } from './store.mjs';
+import { saveLogo } from './logos.mjs';
 
 const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), { status });
-const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 async function readBody(req, limit = 1024 * 1024) {
   if (Number(req.headers['content-length']) > limit) throw failure(413, '文件或请求过大');
@@ -28,6 +28,8 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
   if (!adminPassword || adminPassword.length < 12 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置至少 12 位的管理员密码');
   if (!events.length) throw new Error('活动目录为空');
   const store = openStore(dataDir);
+  try { store.syncCatalog(events); events = store.events(); }
+  catch (error) { store.close(); throw error; }
   const knownIds = new Set(events.map((e) => e.uid));
   const salt = crypto.randomBytes(16);
   const passwordHash = crypto.scryptSync(adminPassword, salt, 32);
@@ -59,26 +61,8 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
   }
   async function uploadLogo(req) {
     const bytes = await readBody(req, 2 * 1024 * 1024);
-    if (req.headers['content-type'] !== 'image/png' || bytes.length < 33 || !bytes.subarray(0, 8).equals(pngSignature) || bytes.toString('ascii', 12, 16) !== 'IHDR') throw failure(400, 'Logo 必须是有效 PNG 图片');
-    const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
-    if (!width || !height || width > 1024 || height > 1024) throw failure(400, 'Logo 尺寸超出限制');
-    const file = `${digest(bytes)}.png`;
-    let url;
-    if (storageUrl && storageToken) {
-      const response = await fetch(`${storageUrl.replace(/\/$/, '')}/public-objects/logos/${file}`, {
-        method: 'PUT', headers: { Authorization: `Bearer ${storageToken}`, 'Content-Type': 'image/png' }, body: bytes,
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!response.ok) throw failure(502, 'Logo 上传失败，请重试');
-      const result = await response.json();
-      url = result.publicUrl;
-      if (typeof url !== 'string' || !url.startsWith('https://')) throw failure(502, '存储服务未返回有效图片地址');
-    } else {
-      if (secureCookies) throw failure(503, '尚未配置 Logo 对象存储');
-      fs.mkdirSync(path.join(dataDir, 'logos'), { recursive: true });
-      fs.writeFileSync(path.join(dataDir, 'logos', file), bytes);
-      url = `/logos/${file}`;
-    }
+    if (req.headers['content-type'] !== 'image/png') throw failure(400, 'Logo 必须是有效 PNG 图片');
+    const url = await saveLogo(bytes, { dataDir, secureCookies, storageUrl, storageToken });
     store.addLogo(url);
     return { url };
   }
@@ -90,14 +74,13 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
     try {
       const pathname = new URL(req.url, 'http://localhost').pathname;
       const method = req.method;
-      if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: true });
-      if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events });
+      if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: store.events().length > 0 });
+      if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: store.events() });
       const publicMatch = pathname.match(/^\/api\/sites\/(\d+)$/);
       if (publicMatch && method === 'GET') {
         const record = store.get(publicMatch[1]);
         if (!record) throw failure(404, '这个页面暂时不存在');
-        const selected = new Set(record.activityIds);
-        return send(res, 200, { brand: { name: record.name, logoUrl: record.logoUrl }, events: events.filter((e) => selected.has(e.uid)) });
+        return send(res, 200, { brand: { name: record.name, logoUrl: record.logoUrl }, events: store.siteEvents(record.id) });
       }
       if (pathname.startsWith('/api/admin/')) {
         if (method !== 'GET') requireMutation(req);

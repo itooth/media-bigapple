@@ -11,5 +11,7 @@ ENV NODE_ENV=production PORT=3000
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
 COPY server ./server
+COPY bootstrap ./bootstrap
+COPY scripts/backup-data.mjs ./scripts/backup-data.mjs
 EXPOSE 3000
 CMD ["node", "server/index.mjs"]
