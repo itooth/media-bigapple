@@ -58,7 +58,7 @@
 2. 为原应用设置 `ADMIN_PASSWORD` Secret；不能复用仓库示例值。确认平台注入 `/data` 与对象存储凭据。缺少对象存储时首次导入会明确失败。
 3. 先执行 `npm run release:prepare`，只把命令返回的干净目录交给部署 Skill。Skill 的 ZIP 脚本不会读取 `.gitignore` / `.dockerignore`，不要直接传开发工作目录。按 Docker 模式 `--inspect` 检查干净目录后，再部署同一个应用。首次从静态切换为后端服务，保留原 appId 与主站地址。
 4. 验证 `/api/health`、原站、管理员登录、三个品牌的 Logo／数量、相册与深链接；保存一项设置后验证重启仍保留。
-5. 独立旧站 `polo-events` 和 `youtui-events` 继续保留；本次代码不会更新它们，也不自动重定向。新地址是原站域名加 `/6024`、`/6025`、`/6026`。
+5. 独立品牌入口按 [brand-domains.md](brand-domains.md) 发布与绑定。已有 `polo-events` 和 `youtui-events` 应用复用为轻量转发入口；新增 `winflow-events`。绑定成功后，旧编号路径跳转到对应品牌域名。
 
 发布更新前做一致性备份。如果应用发布失败，保留上一版及持久化卷。活动内容回滚可以重新同步上一版目录；数据库修改不能靠回滚代码撤销，须按下面的恢复步骤操作。
 

@@ -5,7 +5,7 @@ function readRoute() {
   const routePath = window.location.hash.startsWith('#/')
     ? window.location.hash.slice(1)
     : window.location.pathname;
-  return parseRoute(routePath);
+  return parseRoute(routePath, { branded: !!document.querySelector('meta[name="brand-site"]') });
 }
 
 export default function useRoute() {

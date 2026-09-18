@@ -194,7 +194,7 @@ function Archive({ route, navigate, site, onAdmin }) {
       ) : null}
 
       <div className={`toast ${toast ? 'is-visible' : ''}`} role="status" aria-live="polite">{toast}</div>
-      {!route.tenant && <footer className="admin-entry shell"><button type="button" aria-label="管理员设置" title="管理员设置" onClick={onAdmin}><Settings size={17} /></button></footer>}
+      {!brand && <footer className="admin-entry shell"><button type="button" aria-label="管理员设置" title="管理员设置" onClick={onAdmin}><Settings size={17} /></button></footer>}
     </>
   );
 }

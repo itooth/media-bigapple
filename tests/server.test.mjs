@@ -14,7 +14,7 @@ const events = [
 const password = 'test-only-private-password';
 async function fixture(t, extra = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bigapple-test-'));
-  fs.writeFileSync(path.join(dir, 'index.html'), '<html>test client</html>');
+  fs.writeFileSync(path.join(dir, 'index.html'), '<html><head><title>BigApple Events</title><meta name="description" content="BigApple Events 合作活动档案" /></head><body>test client</body></html>');
   let server;
   async function start() {
     server = createApplication({ events, dataDir: dir, distDir: dir, adminPassword: password, ...extra });
@@ -22,8 +22,8 @@ async function fixture(t, extra = {}) {
     return `http://127.0.0.1:${server.address().port}`;
   }
   let base = await start(); let cookie = '';
-  const request = async (url, { method = 'GET', body, headers = {} } = {}) => {
-    const response = await fetch(base + url, { method, headers: { ...(cookie ? { Cookie: cookie } : {}), ...(method !== 'GET' ? { 'X-Admin-Request': '1', 'Content-Type': 'application/json' } : {}), ...headers }, ...(body === undefined ? {} : { body: typeof body === 'string' || body instanceof Buffer ? body : JSON.stringify(body) }) });
+  const request = async (url, { method = 'GET', body, headers = {}, redirect = 'follow' } = {}) => {
+    const response = await fetch(base + url, { method, redirect, headers: { ...(cookie ? { Cookie: cookie } : {}), ...(method !== 'GET' ? { 'X-Admin-Request': '1', 'Content-Type': 'application/json' } : {}), ...headers }, ...(body === undefined ? {} : { body: typeof body === 'string' || body instanceof Buffer ? body : JSON.stringify(body) }) });
     return response;
   };
   const login = async () => { const response = await request('/api/admin/login', { method: 'POST', body: { password: extra.adminPassword ?? password } }); assert.equal(response.status, 200); cookie = response.headers.get('set-cookie').split(';')[0]; return response; };
@@ -37,6 +37,36 @@ test('a configured four-character password authenticates and wrong passwords rem
   assert.equal((await f.request('/api/admin/login', { method: 'POST', body: { password: 'wrong' } })).status, 401);
   await f.login();
   assert.equal((await f.request('/api/admin/resellers')).status, 200);
+});
+
+test('domain binding is authenticated, unique, durable and redirects old links without altering selections', async (t) => {
+  const f = await fixture(t);
+  assert.equal((await f.request('/api/admin/resellers/6024/domain', { method: 'PUT', body: { hostname: 'polo-events.bigapple.work' } })).status, 401);
+  await f.login();
+  const first = await (await f.request('/api/admin/resellers', { method: 'POST', body: createBody() })).json();
+  const second = await (await f.request('/api/admin/resellers', { method: 'POST', body: createBody('second-client-key-0002') })).json();
+  for (const hostname of ['media.bigapple.work', 'api.bigapple.work', 'evil.example', 'https://polo-events.bigapple.work', 'polo.bigapple.work/evil']) {
+    assert.equal((await f.request('/api/admin/resellers/6024/domain', { method: 'PUT', body: { hostname } })).status, 400);
+  }
+  const bound = await (await f.request('/api/admin/resellers/6024/domain', { method: 'PUT', body: { hostname: 'polo-events.bigapple.work' } })).json();
+  assert.equal(bound.publicUrl, 'https://polo-events.bigapple.work');
+  assert.deepEqual(bound.activityIds, first.activityIds); assert.equal(bound.version, first.version);
+  assert.equal((await f.request(`/api/admin/resellers/${second.id}/domain`, { method: 'PUT', body: { hostname: 'polo-events.bigapple.work' } })).status, 409);
+  const old = await f.request('/6024/events/activity-a/gallery?from=shared', { redirect: 'manual' });
+  assert.equal(old.status, 302); assert.equal(old.headers.get('location'), 'https://polo-events.bigapple.work/events/activity-a/gallery?from=shared');
+  await f.restart(); await f.login();
+  assert.equal((await (await f.request('/api/admin/resellers')).json()).resellers[0].publicUrl, bound.publicUrl);
+  assert.equal((await f.request('/api/sites/6024')).status, 200);
+});
+
+test('branded HTML uses escaped current branding and never falls back on a missing reseller', async (t) => {
+  const f = await fixture(t); await f.login();
+  await f.request('/api/admin/resellers', { method: 'POST', body: { ...createBody(), name: 'Polo <script>&' } });
+  const html = await (await f.request('/api/sites/6024/page')).text();
+  assert.match(html, /<title>Polo &lt;script&gt;&amp;<\/title>/);
+  assert.match(html, /<meta name="brand-site" content="true">/);
+  assert.equal(html.includes('BigApple Events'), false);
+  assert.equal((await f.request('/api/sites/9999/page')).status, 404);
 });
 
 test('login, protected writes, CSRF checks and logout', async (t) => {

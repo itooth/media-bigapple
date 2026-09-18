@@ -80,8 +80,9 @@ function ResellerRow({ record, activities, onDirty, onCancel, onLoginNeeded }) {
     finally { setBusy(false); }
   }
   async function copy() {
-    try { await navigator.clipboard.writeText(`${window.location.origin}/${saved.id}`); setNotice('链接已复制'); }
-    catch { setError(`请复制链接：${window.location.origin}/${saved.id}`); }
+    const url = saved.publicUrl || `${window.location.origin}/${saved.id}`;
+    try { await navigator.clipboard.writeText(url); setNotice('链接已复制'); }
+    catch { setError(`请复制链接：${url}`); }
   }
   return <div className={`reseller-row ${dirty ? 'has-changes' : ''}`}>
     <div className="reseller-cell reseller-id" data-label="编号"><span>{saved?.id || '自动生成'}</span></div>
