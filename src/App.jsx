@@ -140,6 +140,7 @@ function Archive({ route, navigate, site, onAdmin }) {
 
       {route.page === 'detail' ? (
         <EventDetail
+          key={activeEvent.uid || activeEvent.id}
           event={activeEvent}
           onGallery={() => navigate(`/events/${encodeURIComponent(activeEvent.uid)}/gallery`)}
           onProductionGallery={() => navigate(`/events/${encodeURIComponent(activeEvent.uid)}/production-gallery`)}

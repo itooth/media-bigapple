@@ -21,7 +21,7 @@ export function createGateway({ origin, resellerId, timeoutMs = 20000 }) {
         target = `/api/sites/${resellerId}`; expectedType = 'application/json';
       } else if (/^\/logos\/[a-f0-9]{64}\.png$/.test(pathname)) {
         target = pathname; expectedType = 'image/png';
-      } else if (['/', '/index.html'].includes(pathname) || /^\/(?:events\/[^/]+(?:\/(?:gallery|production-gallery))?|filter\/[^/]+)\/?$/.test(pathname)) {
+      } else if (['/', '/index.html', '/events', '/events/'].includes(pathname) || /^\/(?:events\/[^/]+(?:\/(?:gallery|production-gallery))?|filter\/[^/]+)\/?$/.test(pathname)) {
         target = `/api/sites/${resellerId}/page`; expectedType = 'text/html';
       } else return errorPage(404, '这个页面暂时不存在。');
       // Never forward cookies, authorization, user-supplied target IDs or headers.

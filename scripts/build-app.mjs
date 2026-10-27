@@ -8,8 +8,19 @@ function vite(args, env = {}) {
   const result = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', ...args], { stdio: 'inherit', env: { ...process.env, ...env } });
   if (result.status !== 0) process.exit(result.status || 1);
 }
-vite(['build', '--ssr', 'src/data/events.js', '--outDir', '.catalog-build'], { CATALOG_BUILD: '1' });
-const { allEvents } = await import(pathToFileURL(path.resolve('.catalog-build/events.js')));
+// A compiled catalog is independent from the UI and from the author's machine.
+// Explicit paths fail closed; do not silently fall back to a stale catalog.
+const catalogPath = process.env.CASE_CATALOG || path.resolve('content/catalog.json');
+let allEvents;
+if (fs.existsSync(catalogPath)) {
+  allEvents = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+  console.log('Content source:', catalogPath);
+} else if (process.env.CASE_CATALOG) {
+  throw new Error('指定的活动数据文件不存在');
+} else {
+  vite(['build', '--ssr', 'src/data/events.js', '--outDir', '.catalog-build'], { CATALOG_BUILD: '1' });
+  ({ allEvents } = await import(pathToFileURL(path.resolve('.catalog-build/events.js'))));
+}
 if (!allEvents.length || new Set(allEvents.map((e) => e.uid)).size !== allEvents.length) throw new Error('Missing or duplicate activity identity');
 fs.mkdirSync('dist-server', { recursive: true });
 fs.writeFileSync('dist-server/events.json', JSON.stringify(allEvents));

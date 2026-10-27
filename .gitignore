@@ -19,3 +19,6 @@ node_modules/
 .catalog-build/
 dist-server/
 .release/
+
+__pycache__/
+*.pyc

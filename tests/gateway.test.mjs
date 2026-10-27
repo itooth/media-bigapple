@@ -38,7 +38,7 @@ test('brand root and every activity route read one shared page; API always reads
     if (req.url === '/api/sites/6024') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(site)); }
     else { assert.equal(req.url, '/api/sites/6024/page'); res.setHeader('Content-Type', 'text/html'); res.end(html); }
   });
-  for (const path of ['/', '/index.html', '/events/one', '/events/one/gallery', '/events/one/production-gallery', '/filter/FDE']) {
+  for (const path of ['/', '/index.html', '/events', '/events/', '/events/one', '/events/one/gallery', '/events/one/production-gallery', '/filter/FDE']) {
     const response = await fetch(base + path); assert.equal(response.status, 200); assert.equal(await response.text(), html);
     assert.equal(response.headers.get('location'), null);
   }
