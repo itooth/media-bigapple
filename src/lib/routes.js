@@ -6,7 +6,7 @@ export function parseRoute(pathname, { branded = false } = {}) {
   const tenant = prefix?.[1] || null;
   const local = (prefix ? path.slice(prefix[0].length) : path) || '/';
   const base = { tenant, eventId: null, tag: null };
-  if (local === '/') return { ...base, page: 'archive' };
+  if (local === '/' || local === '/events') return { ...base, page: 'archive' };
   try {
     const filter = local.match(/^\/filter\/([^/]+)$/);
     if (filter) return { ...base, page: 'archive', tag: decodeURIComponent(filter[1]) };
