@@ -55,7 +55,7 @@ def compile_activity(activity, website_root, public_dir=None, uploads=None):
             href='/'+target.as_posix()
         resolved[rel]=href; media.append((m,href))
     d={'title':manifest['title'],'date':manifest.get('date') or '', 'city':manifest.get('venue') or '',
-       'summary':manifest.get('summary') or '', 'gallery':[], 'highlights':[], 'productions':[], 'productionGallery':[],
+       'summary':manifest.get('summary') or '', 'organizer':manifest.get('organizer') or '', 'coOrganizers':manifest.get('coOrganizers') or [], 'gallery':[], 'highlights':[], 'productions':[], 'productionGallery':[],
        'videos':[], 'productionVideos':[], 'media':[], 'presentation':{}}
     cases={}; cover=''
     def rank(pair):
@@ -150,4 +150,6 @@ def main():
         catalog[matches[0]]=event
     else: catalog.insert(0,event)
     write(a.out,catalog); print(json.dumps({'activities':len(catalog),'updatedUid':event['uid'],'output':a.out},ensure_ascii=False))
-if __name__=='__main__': main()
+if __name__=='__main__':
+    try: main()
+    except (ValueError,FileNotFoundError) as exc: raise SystemExit('错误: '+str(exc))

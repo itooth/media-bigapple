@@ -52,4 +52,8 @@ YYYY-MM-DD_活动名称/
 
 链接记录：`url,casePath,sourcePath,title,status,captureKind,screenshotPath,capturedAt`，可附 `error/evidence`。`casePath` 指案例目录；报道可用 `kind:social` 且 casePath 为空。captured 只在真网页或视频帧已实看后设置。来源文件必须保留。没有图片但有链接的案例通过 linkReview 保留为文字网站卡。
 
+网页实际显示：title、date、venue（作城市/地点）、summary（简介；`presentation.intro` 优先）、tags、海报、带图片的 partners。organizer/coOrganizers 写入 `detail` 留档，当前 UI 不单独显示；要在页面露出主办方，填 `presentation.partners`（有 logo 才显示）或写进 summary。
+
+scan 输出 `duplicateGroups`，计划条目带 `duplicates`：字节相同的输入只留一份展示，其余 `selected:false` 并放 `其他/重复副本_*`，记录理由。只改名的文件，展示副本沿用原文件名（带同一短哈希），属预期，不重新压缩。`mirror` 有待审素材时照常写出两份 JSON，返回 `pendingOrFailed` 列表，这是正常中间态，补完 review 再跑。
+
 网页 API 仍使用 `gallery/highlights/productionGallery/productions/videos/productionVideos/media`；新增 `detail.presentation` 可选。编译器按 UID 合并单场，不清空整站。UI 不回写原件，也不决定事实或选片。

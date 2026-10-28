@@ -29,6 +29,8 @@ INDEX_SUFFIXES = {'.md', '.txt', '.url'}
 LEGACY_CONFIG_NAMES = {'链接对应表.md'}
 COLLECTION_DIRS = ('案例集合材料', '案例素材', '原案例素材')
 SCORE_PATTERN = re.compile(r'^(\d{5})_(?:首页_)?(.+)$')
+LINK_FILE = '作品链接.md'
+LEGACY_LINK_FILE = '游戏链接.md'
 PLACEHOLDER_URLS = {'站内案例详情页', '待确认', '无', '暂无', ''}
 DROP_WORDS = ('备用入口', '网页版', '移动端', 'h5原型', '原型', '演示', '原版', '入口', '封面')
 ENTRY_PATTERN = re.compile(r'^\s*(?:[-*+]|\d+[.、)])\s*(.+)$')
@@ -242,7 +244,25 @@ def link_file_name(url, name):
     suffix = PurePosixPath(urlsplit(url).path).suffix.lower()
     if '视频' in name or suffix in validator.VIDEOS:
         return '视频链接.md'
-    return '游戏链接.md'
+    return LINK_FILE
+
+
+def resolve_link_file(case, name):
+    """Write to the neutral 作品链接.md, but keep appending to a legacy 游戏链接.md if that is all the case has."""
+    if name == LINK_FILE and not (case / '其他' / LINK_FILE).exists() and (case / '其他' / LEGACY_LINK_FILE).exists():
+        return LEGACY_LINK_FILE
+    return name
+
+
+def ensure_description(case_dir):
+    """Create the 说明.md skeleton catalog.py reads (案例简介 / 案例网址) when the case has none."""
+    path = case_dir / '说明.md'
+    if path.exists():
+        return False
+    match = SCORE_PATTERN.match(case_dir.name)
+    write_text(path, '## 案例名称\n\n' + (match.group(2) if match else case_dir.name) +
+               '\n\n## 案例简介\n\n待补充\n\n## 案例网址\n\n待确认\n')
+    return True
 
 
 def write_text(path, content):
@@ -262,7 +282,7 @@ def apply_results(root, results, unresolved, skipped_cases):
             primaries[record['casePath']] = record
     for record in results:
         case = root / record['casePath']
-        name = link_file_name(record['url'], record['name'])
+        name = resolve_link_file(case, link_file_name(record['url'], record['name']))
         target = case / '其他' / name
         existing = read_text(target)
         if record['url'] not in set(validator.urls_in(target)):
@@ -284,6 +304,8 @@ def apply_results(root, results, unresolved, skipped_cases):
         records.append(str(record_file.relative_to(root)))
         if primaries.get(record['casePath']) is not record:
             continue
+        if ensure_description(case):
+            written.append(str((case / '说明.md').relative_to(root)))
         outcome = update_description(case / '说明.md', record['url'])
         if outcome == 'conflict':
             conflicts.append(record['casePath'] + ' 说明.md 已有其它真实网址，保留原值；清单链接已写入案例链接文件')

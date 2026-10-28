@@ -42,6 +42,12 @@ class Workflow(unittest.TestCase):
    old=entries['IMG_0001.png'];self.assertEqual(old['targetPath'],'01_活动照片/合照.png');self.assertTrue(old['review']['reviewed']);self.assertFalse(old['selected'])
    self.assertIsNone(entries['new.png']['targetPath'])
    d=read(plan2);[e.update(targetPath='01_活动照片/新图.png',review={'reviewed':True,'evidence':'seen'}) for e in d['entries'] if e['sourcePath']=='new.png'];write(plan2,d);apply(plan2,activity)
+   # A file renamed in the archive is still inherited under its current name.
+   mirror(activity,root/'web'); (activity/'01_活动照片/新图.png').rename(activity/'01_活动照片/人工改名.png'); mirror(activity,root/'web')
+   third=root/'batch3';third.mkdir(); Image.new('RGB',(40,30),'green').save(third/'again.png'); Image.new('RGB',(40,30),'green').save(third/'again copy.png')
+   plan3=root/'p3.json';scan(third,plan3,[activity]);entries3={e['sourcePath']:e for e in read(plan3)['entries']}
+   self.assertEqual(entries3['again.png']['targetPath'],'01_活动照片/人工改名.png');self.assertNotIn('candidates',entries3['again.png'])
+   self.assertEqual(entries3['again.png']['duplicates'],['again copy.png'])
    record=read(activity/'其他/整理记录.json');self.assertEqual(len(record['batches']),2);self.assertEqual({e['targetPath'] for e in record['entries']},{'01_活动照片/合照.png','01_活动照片/新图.png'})
  def test_release_requires_backup_gate(self):
   import subprocess,sys

@@ -16,7 +16,11 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
+import subprocess
+import sys
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -219,13 +223,76 @@ def dedupe_candidates(candidates, digests):
     return unique
 
 
-def stage_task(task, binary, output, timeout, limit=6, video_frames=4, capture_fn=capture_candidates):
+def link_deadline(timeout):
+    """Wall-clock budget for one link; individual playwright waits are not enough."""
+    return max(60, timeout * 4)
+
+
+def capture_in_subprocess(task, binary, out_dir, timeout, limit=6, video_frames=4, deadline=None):
+    """Run capture_candidates in its own process group so a stuck browser can be killed.
+
+    Playwright's sync API run inside pool threads can stall forever (seen on Python 3.14
+    with a page that keeps polling), and in-process timeouts cannot interrupt that.
+    """
+    deadline = deadline or link_deadline(timeout)
+    job = Path(out_dir) / 'job.json'
+    job.write_text(json.dumps({'task': task, 'binary': binary, 'timeout': timeout,
+                               'limit': limit, 'videoFrames': video_frames}, ensure_ascii=False), encoding='utf-8')
+    process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--worker', str(job)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        _, stderr = process.communicate(timeout=deadline)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            process.kill()
+        process.communicate()
+        raise TimeoutError(f'link capture exceeded {deadline}s and was killed')
+    result = Path(out_dir) / 'shots.json'
+    if process.returncode != 0 or not result.is_file():
+        raise RuntimeError('capture worker failed: ' + (stderr or '').strip()[-300:])
+    return json.loads(result.read_text(encoding='utf-8'))
+
+
+def run_worker(job_path):
+    job = json.loads(Path(job_path).read_text(encoding='utf-8'))
+    shots = capture_candidates(job['task'], job['binary'], Path(job_path).parent, job['timeout'],
+                               job['limit'], job['videoFrames'])
+    (Path(job_path).parent / 'shots.json').write_text(json.dumps(shots, ensure_ascii=False), encoding='utf-8')
+    return 0
+
+
+def call_with_deadline(capture_fn, args, deadline):
+    """Injected capture functions run in a daemon thread so they cannot block exit."""
+    box = {}
+
+    def target():
+        try:
+            box['value'] = capture_fn(*args)
+        except BaseException as exception:
+            box['error'] = exception
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(deadline)
+    if thread.is_alive():
+        raise TimeoutError(f'link capture exceeded {deadline}s')
+    if 'error' in box:
+        raise box['error']
+    return box['value']
+
+
+def stage_task(task, binary, output, timeout, limit=6, video_frames=4, capture_fn=None, deadline=None):
     record = {**task, 'status': 'failed', 'capturedAt': timestamp(), 'candidatePaths': [],
               'candidatePath': None, 'recommendedPath': None, 'screenshotPath': None,
               'captureKind': None, 'title': '', 'candidates': [], 'error': ''}
     try:
         with tempfile.TemporaryDirectory(prefix='capture-', dir=output) as temporary:
-            shots = capture_fn(task, binary, Path(temporary), timeout, limit, video_frames)
+            if capture_fn is None:
+                shots = capture_in_subprocess(task, binary, temporary, timeout, limit, video_frames, deadline)
+            else:
+                shots = call_with_deadline(capture_fn, (task, binary, Path(temporary), timeout, limit, video_frames),
+                                           deadline or link_deadline(timeout))
             if not shots:
                 raise RuntimeError('no candidate frames were produced')
             digests = {shot['file']: validator.sha256(Path(temporary) / shot['file']) for shot in shots}
@@ -311,12 +378,16 @@ def already_reviewed(root, task, mapping):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ['--worker']:
+        return run_worker(argv[1])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('activity')
     parser.add_argument('--case', action='append')
     parser.add_argument('--chrome')
     parser.add_argument('--output', help='staging directory outside activity; default sibling hidden directory')
     parser.add_argument('--timeout', type=int, default=30)
+    parser.add_argument('--link-timeout', type=int, help='hard wall-clock seconds per link; default max(60, 4 x --timeout)')
     parser.add_argument('--workers', type=int, choices=range(1, 5), default=3)
     parser.add_argument('--candidates', type=int, default=6, help='max candidate frames per link')
     parser.add_argument('--video-frames', type=int, default=4, help='sampled video moments per link')
@@ -348,7 +419,8 @@ def main(argv=None):
     output.mkdir(parents=True, exist_ok=True)
     with ThreadPoolExecutor(max_workers=arguments.workers) as pool:
         staged = pool.map(lambda task: stage_task(task, binary, output, arguments.timeout,
-                                                  arguments.candidates, arguments.video_frames), pending)
+                                                  arguments.candidates, arguments.video_frames,
+                                                  deadline=arguments.link_timeout), pending)
         for record in staged:
             records[record['key']] = record
             write_checkpoint(checkpoint, {'version': 2, 'activity': str(root), 'results': list(records.values())})

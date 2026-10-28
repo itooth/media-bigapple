@@ -19,4 +19,6 @@ def check(activity, archive, evidence):
     print('本版本的确认与备份回执检查通过。发布仍使用部署工具，并核对云端读回证据；本脚本未发布。')
 def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('activity');p.add_argument('archive');p.add_argument('evidence');a=p.parse_args();check(a.activity,a.archive,a.evidence)
-if __name__=='__main__':main()
+if __name__=='__main__':
+    try: main()
+    except (ValueError,FileNotFoundError) as exc: raise SystemExit('错误: '+str(exc))

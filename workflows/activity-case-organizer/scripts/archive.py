@@ -23,10 +23,15 @@ def known_judgments(archives):
         root=Path(a).resolve(); records=[]
         if (root/'媒体映射.json').exists():
             records+=[{'sha256':m['originalSha256'],'path':m['originalPath'],'review':m.get('review'),'role':m.get('role'),'selected':m.get('selected',True)} for m in read(root/'媒体映射.json')['media']]
+        mapped={r['sha256'] for r in records}
         if (root/'其他/整理记录.json').exists():
-            records+=[{'sha256':e['sha256'],'path':e.get('targetPath'),'review':e.get('review'),'role':e.get('role'),'selected':e.get('selected',True)} for e in read(root/'其他/整理记录.json')['entries']]
+            # The media map follows the current file names; the intake record only fills in non-media files.
+            records+=[{'sha256':e['sha256'],'path':e.get('targetPath'),'review':e.get('review'),'role':e.get('role'),'selected':e.get('selected',True)} for e in read(root/'其他/整理记录.json')['entries'] if e['sha256'] not in mapped]
         for r in records:
-            if r['path'] and (r.get('review') or {}).get('reviewed'): known.setdefault(r['sha256'],{})[(str(root),r['path'])]={**r,'archive':str(root)}
+            if not r['path'] or not (r.get('review') or {}).get('reviewed'): continue
+            current=root.joinpath(*Path(r['path']).parts)
+            if not current.is_file() or digest(current)!=r['sha256']: continue  # renamed away or replaced
+            known.setdefault(r['sha256'],{})[(str(root),r['path'])]={**r,'archive':str(root)}
     return {sha:list(v.values()) for sha,v in known.items()}
 
 def scan(source, plan_path, archives=None):
@@ -52,9 +57,15 @@ def scan(source, plan_path, archives=None):
         e.update(sourcePath=rel,sha256=sha,bytes=p.stat().st_size)
         if not prior: e['originalName']=p.name
         entries.append(e)
+    groups={}
+    for e in entries: groups.setdefault(e['sha256'],[]).append(e['sourcePath'])
+    for e in entries:
+        others=[x for x in groups[e['sha256']] if x!=e['sourcePath']]
+        if others: e['duplicates']=others
+        else: e.pop('duplicates',None)
     missing=[e for e in old['entries'] if e['sha256'] not in {x['sha256'] for x in entries}]
     old.update(sourceRoot=str(source),entries=entries,missing=missing,scannedAt=now()); write(target,old)
-    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'missing':len(missing)},ensure_ascii=False))
+    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'duplicateGroups':[v for v in groups.values() if len(v)>1],'missing':len(missing)},ensure_ascii=False))
 
 def apply(plan_path, activity):
     plan=read(plan_path); root=Path(activity).resolve(); source=Path(plan['sourceRoot']).resolve()
@@ -213,4 +224,6 @@ def main():
         q=sub.add_parser(name); q.add_argument('source'); q.add_argument(second)
         if name=='scan': q.add_argument('--archive',action='append',dest='archives',help='已整理活动目录，复用其中已审核的判断')
     a=p.parse_args(); args=vars(a); cmd=args.pop('cmd'); values=list(args.values()); globals()[cmd](*values)
-if __name__=='__main__': main()
+if __name__=='__main__':
+    try: main()
+    except (ValueError,FileNotFoundError) as exc: raise SystemExit('错误: '+str(exc))

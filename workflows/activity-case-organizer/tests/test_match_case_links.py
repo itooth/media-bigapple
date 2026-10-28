@@ -124,7 +124,7 @@ class LinkIndexTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(report['summary'], {'indexEntries': 1, 'assigned': 1, 'unassigned': 0, 'casesWithoutLink': 1})
         case = self.root / '02_案例/08200_交易复盘'
-        self.assertIn('https://example.com/deal/index.html', (case / '其他/游戏链接.md').read_text(encoding='utf-8'))
+        self.assertIn('https://example.com/deal/index.html', (case / '其他/作品链接.md').read_text(encoding='utf-8'))
         self.assertIn('| 交易复盘 |', (case / '其他/链接匹配记录.md').read_text(encoding='utf-8'))
         self.assertIn('https://example.com/deal/index.html', (case / '说明.md').read_text(encoding='utf-8'))
         self.assertIn('08200_诗歌背诵游戏', (self.root / '其他/待确认素材.md').read_text(encoding='utf-8'))
@@ -132,7 +132,7 @@ class LinkIndexTests(unittest.TestCase):
     def test_apply_is_idempotent(self):
         self.write_index('- 交易复盘：https://example.com/deal/index.html\n')
         self.run_main('--apply')
-        link_file = self.root / '02_案例/08200_交易复盘/其他/游戏链接.md'
+        link_file = self.root / '02_案例/08200_交易复盘/其他/作品链接.md'
         first = link_file.read_text(encoding='utf-8')
         self.run_main('--apply')
         self.assertEqual(first, link_file.read_text(encoding='utf-8'))
@@ -147,12 +147,32 @@ class LinkIndexTests(unittest.TestCase):
         self.assertIn('https://manual.example.com/page', description.read_text(encoding='utf-8'))
         self.assertTrue(report['conflicts'])
 
+    def test_legacy_link_file_is_still_appended(self):
+        self.write_index('- 交易复盘：https://example.com/deal/index.html\n')
+        other = self.root / '02_案例/08200_交易复盘/其他'
+        other.mkdir(parents=True, exist_ok=True)
+        (other / '游戏链接.md').write_text('# 游戏链接\n\n- 旧：https://example.com/old\n', encoding='utf-8')
+        self.run_main('--apply')
+        self.assertIn('https://example.com/deal/index.html', (other / '游戏链接.md').read_text(encoding='utf-8'))
+        self.assertFalse((other / '作品链接.md').exists())
+
+    def test_apply_creates_description_template_when_missing(self):
+        self.write_index('- 交易复盘：https://example.com/deal/index.html\n')
+        description = self.root / '02_案例/08200_交易复盘/说明.md'
+        description.unlink()
+        self.run_main('--apply')
+        text = description.read_text(encoding='utf-8')
+        for heading in ('## 案例名称', '## 案例简介', '## 案例网址'):
+            self.assertIn(heading, text)
+        self.assertTrue(text.rstrip().endswith('https://example.com/deal/index.html'))
+        self.assertIn('交易复盘', text)
+
     def test_video_link_goes_to_video_file(self):
         self.write_index('- 交易复盘：https://example.com/demo.mp4\n')
         self.run_main('--apply')
         other = self.root / '02_案例/08200_交易复盘/其他'
         self.assertTrue((other / '视频链接.md').is_file())
-        self.assertFalse((other / '游戏链接.md').exists())
+        self.assertFalse((other / '作品链接.md').exists())
 
     def test_read_only_run_writes_nothing(self):
         self.write_index('- 交易复盘：https://example.com/deal/index.html\n')

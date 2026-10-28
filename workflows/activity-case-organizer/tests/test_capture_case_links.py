@@ -158,6 +158,48 @@ class CaptureTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             capture.main([str(self.root), '--output', str(self.root / '其他')])
 
+    def test_hung_capture_times_out_and_records_failure(self):
+        task = capture.discover(self.root)[0]
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        def hang(*arguments):
+            release.wait(30)
+        started = __import__('time').monotonic()
+        record = capture.stage_task(task, 'unused', self.output, 1, 6, 4, hang, deadline=1)
+        self.assertLess(__import__('time').monotonic() - started, 10)
+        self.assertEqual(record['status'], 'failed')
+        self.assertIn('TimeoutError', record['error'])
+
+    def test_stuck_worker_process_is_killed_at_deadline(self):
+        real_popen = capture.subprocess.Popen
+
+        def stuck(command, **kwargs):
+            return real_popen([capture.sys.executable, '-c', 'import time; time.sleep(60)'], **kwargs)
+        started = __import__('time').monotonic()
+        with patch.object(capture.subprocess, 'Popen', stuck):
+            with self.assertRaises(TimeoutError):
+                capture.capture_in_subprocess({'url': 'x'}, 'b', self.output, 1, deadline=2)
+        self.assertLess(__import__('time').monotonic() - started, 10)
+
+    def test_main_records_timeout_and_exits_and_continues(self):
+        (self.other / '补充.txt').write_text('https://a.example/one\nhttps://b.example/two\n', encoding='utf-8')
+
+        def fake(task, binary, out_dir, timeout, limit, video_frames, deadline=None):
+            if 'a.example' in task['url']:
+                raise TimeoutError('link capture exceeded 2s and was killed')
+            return self.fake_capture(task, binary, out_dir, timeout, limit, video_frames)
+        with patch.object(capture, 'chrome_binary', return_value='b'), patch.object(capture, 'capture_in_subprocess', fake), \
+                contextlib.redirect_stdout(io.StringIO()) as stream:
+            code = capture.main([str(self.root), '--output', str(self.output), '--workers', '1', '--link-timeout', '2'])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stream.getvalue())['failed'], 1)
+        results = json.loads((self.output / 'capture-review.json').read_text(encoding='utf-8'))['results']
+        by_url = {row['url']: row for row in results}
+        self.assertEqual(by_url['https://a.example/one']['status'], 'failed')
+        self.assertIn('TimeoutError', by_url['https://a.example/one']['error'])
+        self.assertEqual(by_url['https://b.example/two']['status'], 'needs-review')
+
     def test_dry_run_has_no_browser_network_or_writes(self):
         before = self.snapshot()
         with patch.object(capture, 'chrome_binary', side_effect=AssertionError('browser discovery')), contextlib.redirect_stdout(io.StringIO()) as stream:
@@ -222,6 +264,7 @@ class BrowserCaptureTests(unittest.TestCase):
                              'const x=c.getContext("2d");for(let i=0;i<40;i++){x.fillStyle=`hsl(${i*9},70%,50%)`;'
                              'x.fillRect(i*18,i*8,60,300);}document.body.appendChild(c);}</script>',
                     '/loading': '<title>Game</title><p>加载中…</p>',
+                    '/poll': '<title>poll</title><h1>live</h1><script>setInterval(()=>fetch("/slow").catch(()=>{}),50)</script>',
                     '/error': '<title>404 Error</title><h1>Not Found</h1>',
                     '/video': '<title>Video fixture</title><video width="640" height="360" poster="/poster.png" controls></video>',
                 }
@@ -253,6 +296,16 @@ class BrowserCaptureTests(unittest.TestCase):
                 shutil.copyfile(Path(temporary.name) / candidate['path'],
                                 output / f"{route[1:]}-{candidate['kind']}-{candidate['contentScore']}.png")
         return record
+
+    def test_never_idle_page_still_finishes_within_deadline(self):
+        url = f'http://127.0.0.1:{self.server.server_port}/poll'
+        task = {'key': capture.task_key('case', url), 'casePath': 'case', 'url': url, 'videoHint': False}
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        started = __import__('time').monotonic()
+        record = capture.stage_task(task, self.binary, Path(temporary.name), 5, 6, 3, deadline=40)
+        self.assertLess(__import__('time').monotonic() - started, 60)
+        self.assertIn(record['status'], {'needs-review', 'failed'})
 
     def test_real_page_samples_several_moments(self):
         record = self.run_page('/game')

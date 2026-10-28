@@ -22,3 +22,4 @@ dist-server/
 
 __pycache__/
 *.pyc
+dist/case-assets/
