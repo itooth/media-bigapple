@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const files = ['Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'index.html', 'vite.config.js'];
-const directories = ['src', 'server', 'bootstrap', 'scripts', 'content'];
+const directories = ['src', 'server', 'bootstrap', 'scripts'];
 const extensions = new Set(['.js', '.mjs', '.jsx', '.css', '.json', '.png', '.svg']);
 
 export function prepareRelease(root, destination) {
