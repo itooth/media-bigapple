@@ -10,9 +10,10 @@ python3 "$SKILL/scripts/archive.py" scan /输入目录 /工作区/整理计划.j
 python3 "$SKILL/scripts/archive.py" scan /新一批素材 /工作区/整理计划-2.json --archive /素材库/活动
 python3 "$SKILL/scripts/archive.py" apply /工作区/整理计划.json /素材库/活动
 python3 "$SKILL/scripts/archive.py" mirror /素材库/活动 /网站压缩素材
+# 先在网站工程导出当前全站数据（以 src/data 为准）：npm run build:catalog
 python3 "$SKILL/scripts/catalog.py" /素材库/活动 \
   --website-root /网站压缩素材 \
-  --catalog /网站工程/content/catalog.json \
+  --catalog /网站工程/dist-server/events.json \
   --out /工作区/catalog.preview.json --public-dir /工作区/preview-public
 ```
 
@@ -31,11 +32,11 @@ BIGAPPLE_DATA_DIR=/工作区/preview-db PORT=4192 npm start
 
 ```sh
 python3 "$SKILL/scripts/catalog.py" /素材库/活动 \
-  --website-root /网站压缩素材 --catalog /网站工程/content/catalog.json \
+  --website-root /网站压缩素材 --catalog /网站工程/dist-server/events.json \
   --out /工作区/catalog.release.json --uploads /工作区/媒体上传回执.json \
   --backup /备份盘/活动-版本.tar.gz --evidence /工作区/交接确认.json
 ```
 
-回执表按真实 SHA256 索引：`{"<sha256>":{"sha256":"<sha256>","bytes":123,"url":"https://真实存储地址"}}`。回执来自上传工具和验证，不凭空生成。上传失败不编译半成品。发布前审阅新旧 catalog 差异，确认仅目标 UID 变动，再替换工程 content/catalog.json 并构建。
+回执表按真实 SHA256 索引：`{"<sha256>":{"sha256":"<sha256>","bytes":123,"url":"https://真实存储地址"}}`。回执来自上传工具和验证，不凭空生成。上传失败不编译半成品。发布前审阅新旧 catalog 差异，确认仅目标 UID 变动，再用 `CASE_CATALOG=/工作区/catalog.release.json npm run build` 构建发布包。长期保存时把新活动按工程现有方式写入 src/data，避免两套数据源分叉。
 
 验证脚本：`python3 "$SKILL/scripts/test_workflow.py"`。只用隔离测试目录，不拿真实活动做破坏性测试。

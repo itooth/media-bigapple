@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { eventPresentation, downloadItems, safeUrl } from '../src/lib/eventPresentation.js';
 import { downloadZip } from '../src/lib/downloadZip.js';
+import { spawnSync } from 'node:child_process';
+
+function liveCatalog() {
+  const built = spawnSync(process.execPath, ['scripts/build-app.mjs', '--catalog-only'], { encoding: 'utf8', env: { ...process.env, CASE_CATALOG: '' } });
+  assert.equal(built.status, 0, built.stdout + built.stderr);
+  return JSON.parse(fs.readFileSync('dist-server/events.json'));
+}
 
 test('all live activity media and links survive the presentation adapter without mutation', () => {
-  const catalog = JSON.parse(fs.readFileSync('content/catalog.json'));
-  assert.equal(catalog.length, 46);
+  const catalog = liveCatalog();
+  assert(catalog.length >= 46);
   for (const event of catalog) {
     const before = JSON.stringify(event), d = event.detail, view = eventPresentation(event);
     const photos = new Set(view.photos.map(i => i.image));

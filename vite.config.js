@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { mediaIndex } from './src/data/mediaIndex.generated.js';
 import contentSnapshot from './src/data/siteContent.snapshot.json' with { type: 'json' };
+import { mediaFoldersByActivityId, readLibraryActivities } from './scripts/lib/activityFolderMap.mjs';
 
 // 前端只认索引：案例封面在不在，查索引，不再查本地图片目录。
 // 索引由 scripts/build-media-index.mjs 从「网站压缩素材」生成，是自足的快照。
@@ -48,13 +49,17 @@ const opusGalleryRoot = path.resolve(process.cwd(), '..', 'opus-gallery-static')
 const workspaceRoot = path.resolve(process.cwd(), '..', '..');
 const mediaRoot = path.join(workspaceRoot, '素材库');
 // 前端不留任何图片：候选素材目录只可能在项目之外（归档位置），项目内已经清空。
-const websiteMediaRoot = [
+// 压缩镜像可能有多份：本机副本（本地图存档）优先，iCloud 原件兜底。
+// 本机副本读得快、不受 iCloud 占位文件拖累；本机没同步到的图自动回退 iCloud，不会缺图。
+const websiteMediaRoots = [
   process.env.ANLI_WEBSITE_MEDIA,
+  path.join(workspaceRoot, '本地图存档', '网站压缩素材'),
   path.join(workspaceRoot, 'anli_web_图片存档', '网站压缩素材'),
   path.join(workspaceRoot, 'anli_web', 'anli_web', 'public', '网站压缩素材'),
 ]
   .filter(Boolean)
-  .find((candidate) => fs.existsSync(candidate)) || null;
+  .filter((candidate) => fs.existsSync(candidate));
+const websiteMediaRoot = websiteMediaRoots[0] || null;
 const aichongFolder = fs.existsSync(mediaRoot)
   ? fs.readdirSync(mediaRoot).find((name) => /^2026-01(?:-|_)\d{1,2}.*爱宠黑客松$/u.test(name))
   : null;
@@ -324,6 +329,95 @@ function localMediaLibrary() {
   };
 }
 
+
+// 本地预览图床：直接把「网站压缩素材」挂在 /local-media 下，与前端同一个进程，
+// 避免另开端口导致的不稳定。只在 npm run dev 时生效，正式构建不涉及。
+// 传入多个镜像根时按顺序找文件：本机副本命中就不去读 iCloud。
+function localPreviewMedia(mediaRootDirs) {
+  const roots = (Array.isArray(mediaRootDirs) ? mediaRootDirs : [mediaRootDirs]).filter(Boolean);
+  // 活动 id → 各镜像根里的真实目录名。目录名与 id 不一致（例如镜像少一个「一期」）也能对上。
+  let foldersById = new Map();
+  const refreshIds = () => {
+    const activities = readLibraryActivities(mediaRoot);
+    const next = new Map();
+    for (const root of roots) {
+      for (const [activityId, folder] of mediaFoldersByActivityId(root, activities)) {
+        if (!next.has(activityId)) next.set(activityId, folder);
+      }
+    }
+    foldersById = next;
+  };
+  async function findMediaFile(folder, relative) {
+    const failures = [];
+    for (const root of roots) {
+      const filePath = path.resolve(path.join(root, folder, relative));
+      if (!filePath.startsWith(path.resolve(root) + path.sep)) continue;
+      try {
+        const stats = await fs.promises.stat(filePath);
+        if (stats.isFile()) return { filePath, stats };
+      } catch (error) {
+        if (error?.code !== 'ENOENT') failures.push(`${root}: ${error?.code || error?.message}`);
+      }
+    }
+    if (failures.length) console.warn(`[preview-media] 读不到 ${folder}/${relative} → ${failures.join(' | ')}`);
+    return null;
+  }
+  return {
+    name: 'local-preview-media',
+    configureServer(server) {
+      server.middlewares.use('/local-media', (request, response, next) => {
+        if (!roots.length) return next();
+        refreshIds();
+        let url = '/';
+        try { url = decodeURIComponent((request.url || '/').split('?')[0]); } catch { url = (request.url || '/').split('?')[0]; }
+        const rest = url.replace(/^\/+/, '');
+        const slash = rest.indexOf('/');
+        const activityId = slash === -1 ? rest : rest.slice(0, slash);
+        const relative = slash === -1 ? '' : rest.slice(slash + 1);
+        const folder = foldersById.get(activityId) || activityId;
+        findMediaFile(folder, relative).then((hit) => {
+          if (!hit) { response.writeHead(404); response.end('not found'); return; }
+          const stream = fs.createReadStream(hit.filePath, { highWaterMark: 64 * 1024 });
+          // 先读到第一段数据再发响应头：iCloud 占位文件即使 open 成功，
+          // 第一次真正读取也可能失败（EPERM），那时还能回一个明确的 502。
+          stream.once('data', (chunk) => {
+            if (!response.headersSent) {
+              response.writeHead(200, {
+                'Content-Type': mediaTypes[path.extname(hit.filePath).toLowerCase()] || 'application/octet-stream',
+                'Content-Length': hit.stats.size,
+                'Cache-Control': 'no-store',
+              });
+              response.write(chunk);
+              stream.pipe(response);
+            }
+          });
+          stream.once('end', () => {
+            if (response.headersSent) return;
+            response.writeHead(200, {
+              'Content-Type': mediaTypes[path.extname(hit.filePath).toLowerCase()] || 'application/octet-stream',
+              'Content-Length': '0',
+            });
+            response.end();
+          });
+          // 读不到（例如 iCloud 占位文件没落到本机）时给明确的 502，不要把连接直接掐断。
+          stream.on('error', (error) => {
+            if (!response.headersSent) {
+              console.warn(`[preview-media] 读取失败 ${hit.filePath} → ${error?.code || error?.message}`);
+              try {
+                response.writeHead(502, { 'Content-Type': 'text/plain; charset=utf-8' });
+                response.end(`media read failed: ${error?.code || error?.message || 'unknown'}`);
+              } catch {}
+            } else {
+              try { response.destroy(); } catch {}
+            }
+          });
+          response.on('error', () => { try { stream.destroy(); } catch {} });
+        }).catch(() => { try { response.writeHead(500); response.end('media error'); } catch {} });
+      });
+    },
+  };
+}
+
 const virtualAichongCasesId = 'virtual:aichong-cases';
 const resolvedVirtualAichongCasesId = `\0${virtualAichongCasesId}`;
 const virtualCaseMediaId = 'virtual:case-media';
@@ -333,23 +427,55 @@ const resolvedVirtualActivityManifestsId = `\0${virtualActivityManifestsId}`;
 const virtualSocialLinksId = 'virtual:social-links';
 const resolvedVirtualSocialLinksId = `\0${virtualSocialLinksId}`;
 
+const VIDEO_SUFFIXES = new Set(['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv']);
+
+// 活动视频：直接扫磁盘，避免 manifest 漏登记；前端只渲染云端/本地确实存在的文件。
+function listActivityVideos(activityDir) {
+  const result = [];
+  const walk = (current) => {
+    let entries = [];
+    try { entries = fs.readdirSync(current, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (entry.name.startsWith('._') || entry.name === '.DS_Store') continue;
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!VIDEO_SUFFIXES.has(path.extname(entry.name).toLowerCase())) continue;
+      const relative = path.relative(activityDir, full).split(path.sep).join('/');
+      result.push({ path: relative, name: entry.name });
+    }
+  };
+  walk(path.join(activityDir, '01_活动照片'));
+  result.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'));
+  return result;
+}
+
 function readActivityManifests() {
+
   const result = [];
   if (!fs.existsSync(mediaRoot)) return contentSnapshot.activityManifests;
+  // 视频清单以「网站压缩素材」为准：它才是实际上传、实际展示的那一份。
+  // 母库里可能还是原片名，而镜像里可能是无损切段后的分段名（例如 _上/_下）。
+  const activities = readLibraryActivities(mediaRoot);
+  const mirrorRoot = websiteMediaRoots[0] || null;
+  const mirrorFolders = mirrorRoot ? mediaFoldersByActivityId(mirrorRoot, activities) : new Map();
   for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const manifestPath = path.join(mediaRoot, entry.name, 'manifest.json');
     if (!fs.existsSync(manifestPath)) continue;
     try {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
+      const id = manifest.id || entry.name;
+      const mirrorFolder = mirrorFolders.get(id);
+      const mirrorPath = mirrorRoot && mirrorFolder ? path.join(mirrorRoot, mirrorFolder) : null;
       result.push({
-        id: manifest.id || entry.name,
+        id,
         title: manifest.title || entry.name,
         folder: entry.name,
         date: manifest.date || '',
         place: manifest.place || manifest.venue || '',
         summary: manifest.summary || `${manifest.title || entry.name}活动资料与成员作品归档。`,
         tags: Array.isArray(manifest.tags) ? manifest.tags : [],
+        videos: listActivityVideos(mirrorPath && fs.existsSync(mirrorPath) ? mirrorPath : path.join(mediaRoot, entry.name)),
       });
     } catch {}
   }
@@ -463,16 +589,14 @@ function mediaLibraryIndex() {
         .filter((entry) => entry.isDirectory())
         .map((entry) => path.join(mediaRoot, entry.name, 'manifest.json'));
       const watchTargets = [
-        ...(websiteMediaRoot ? [websiteMediaRoot] : []),
+        ...websiteMediaRoots,
         ...manifestFiles.filter((file) => fs.existsSync(file)),
       ];
       if (watchTargets.length) server.watcher.add(watchTargets);
       let timer;
       const refresh = (_event, filename) => {
         const absolute = path.resolve(filename);
-        const insideWebsiteMedia = websiteMediaRoot
-          ? absolute.startsWith(`${websiteMediaRoot}${path.sep}`)
-          : false;
+        const insideWebsiteMedia = websiteMediaRoots.some((root) => absolute.startsWith(`${root}${path.sep}`));
         if (!insideWebsiteMedia && !manifestFiles.includes(absolute)) return;
         clearTimeout(timer);
         timer = setTimeout(() => {
@@ -529,8 +653,12 @@ export default defineConfig({
   // Local previews serve media through middleware. Deploy builds can point this
   // at a prepared public directory containing only the selected activities.
   publicDir: process.env.VITE_PUBLIC_DIR || false,
-  server: { proxy: { '/api': 'http://127.0.0.1:3001', '/logos': 'http://127.0.0.1:3001' } },
-  plugins: [react(), mediaLibraryIndex(), localMediaLibrary(), viteSingleFile(), guardBundledImages()],
+  server: {
+    proxy: { '/api': 'http://127.0.0.1:3001', '/logos': 'http://127.0.0.1:3001' },
+    // 构建时插件会刷新内容快照；忽略它，避免 dev 反复自我重启。
+    watch: { ignored: ['**/siteContent.snapshot.json'] },
+  },
+  plugins: [react(), mediaLibraryIndex(), localMediaLibrary(), localPreviewMedia(websiteMediaRoots), viteSingleFile(), guardBundledImages()],
   build: {
     cssCodeSplit: false,
     rollupOptions: {

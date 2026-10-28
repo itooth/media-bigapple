@@ -12,10 +12,11 @@ const configuredBase = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/$/
  */
 export function mediaUrl(activityId, relativePath) {
   const normalizedPath = String(relativePath || '').replace(/^\//, '');
+  // 本地预览模式：显式设置 VITE_MEDIA_BASE_URL 时，一律读本机预览服务，不碰云端。
+  // 这条分支只在 `npm run dev` 预览时生效；正式构建不带这个变量，永远走云端链接。
+  if (configuredBase) return `${configuredBase}/${activityId}/${normalizedPath}`;
   const entry = mediaIndexEntry(activityId, normalizedPath);
   if (entry) return entry.url;
-  // 只有显式配置了本地媒体服务器时才回退到本地路径，正常情况永远走云端
-  if (configuredBase) return `${configuredBase}/${activityId}/${normalizedPath}`;
   return '';
 }
 

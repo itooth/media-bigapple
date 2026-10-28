@@ -10,6 +10,9 @@ export function parseRoute(pathname, { branded = false } = {}) {
   try {
     const filter = local.match(/^\/filter\/([^/]+)$/);
     if (filter) return { ...base, page: 'archive', tag: decodeURIComponent(filter[1]) };
+    const caseFilter = local.match(/^\/cases\/filter\/([^/]+)$/);
+    if (caseFilter) return { ...base, page: 'cases', tag: decodeURIComponent(caseFilter[1]) };
+    if (local === '/cases') return { ...base, page: 'cases' };
     const event = local.match(/^\/events\/([^/]+)(?:\/(gallery|production-gallery))?$/);
     if (event) return { ...base, page: event[2] || 'detail', eventId: decodeURIComponent(event[1]) };
   } catch { /* malformed URL is a not-found page, never the full archive */ }

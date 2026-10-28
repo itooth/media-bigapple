@@ -8,15 +8,14 @@ function vite(args, env = {}) {
   const result = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', ...args], { stdio: 'inherit', env: { ...process.env, ...env } });
   if (result.status !== 0) process.exit(result.status || 1);
 }
-// A compiled catalog is independent from the UI and from the author's machine.
-// Explicit paths fail closed; do not silently fall back to a stale catalog.
-const catalogPath = process.env.CASE_CATALOG || path.resolve('content/catalog.json');
+// src/data is the maintained content source. A compiled catalog (from the case
+// workflow) is used only when named explicitly, and a missing one fails closed.
+const catalogPath = process.env.CASE_CATALOG;
 let allEvents;
-if (fs.existsSync(catalogPath)) {
+if (catalogPath) {
+  if (!fs.existsSync(catalogPath)) throw new Error('指定的活动数据文件不存在');
   allEvents = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
   console.log('Content source:', catalogPath);
-} else if (process.env.CASE_CATALOG) {
-  throw new Error('指定的活动数据文件不存在');
 } else {
   vite(['build', '--ssr', 'src/data/events.js', '--outDir', '.catalog-build'], { CATALOG_BUILD: '1' });
   ({ allEvents } = await import(pathToFileURL(path.resolve('.catalog-build/events.js'))));

@@ -310,6 +310,7 @@ button:disabled {
 .archive-toolbar {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   min-height: 40px;
   margin-bottom: 10px;
 }
@@ -434,6 +435,9 @@ button:disabled {
   border: 1px solid #e2e2e5;
   border-radius: 18px;
   background: #fff;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -535,6 +539,21 @@ button:disabled {
   color: #444448;
   font-size: 13px;
   line-height: 1.5;
+}
+
+/* 案例卡片：自带描述放第二行（最多两行），所属活动降为小字来源行 */
+.case-card .case-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.case-card .case-source {
+  margin-top: 7px;
+  color: #8a8a90;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .event-card:hover .event-image-wrap img {

@@ -1,7 +1,0 @@
-{
-  "source": "https://media.bigapple.work/api/site",
-  "sourceDeploymentId": "deployment_8a7afc16-ea0b-47af-b9ff-0539dda75de3",
-  "events": 46,
-  "sourceResponseSha256": "738ae9c8f78ca78c5df5a5bb97b1b7b92c3ecedfdc765cce11075d0b1d8b70be",
-  "note": "从公开站点读取的活动数据快照；不是服务器源码、原始媒体或代理商配置备份。"
-}
