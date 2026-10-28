@@ -1,4 +1,5 @@
 import { cloudMediaUrl } from '../lib/media.js';
+import { mediaIndex } from './mediaIndex.generated.js';
 
 // 应用封面不在活动照片目录里，本地没有对应文件，
 // 统一走云端媒体链接，前端不再打包任何图片。
@@ -23,9 +24,23 @@ const catalog = [
   ['health-plan', '健康计划', '02_案例/首页06_09650_健康计划/截图/主图.jpg', '生成并维护个人健康计划的智能助手。', 'https://app.dalijiao.com:9303/uploads/deployment/p_f507d0a5372aa66c/jiankang-plan-demo/index.html'],
 ];
 
+// 这几张封面是写死的路径；素材重新整理后文件名多了后缀（主图.jpg → 主图_xxx.jpg），
+// 精确对不上时，在同一案例目录里找「主图*」，避免整条案例因为找不到封面而被丢掉。
+function resolveCoverPath(mediaPath) {
+  const exact = mediaIndex.some((item) => item.activityId === activityId && item.path === mediaPath);
+  if (exact) return mediaPath;
+  const dir = mediaPath.slice(0, mediaPath.lastIndexOf('/') + 1);
+  const ext = mediaPath.slice(mediaPath.lastIndexOf('.')).toLowerCase();
+  const candidates = mediaIndex
+    .filter((item) => item.activityId === activityId && item.path.startsWith(dir) && /主图/.test(item.path))
+    .sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'));
+  const sameExt = candidates.find((item) => item.path.toLowerCase().endsWith(ext));
+  return (sameExt || candidates[0])?.path || '';
+}
+
 export default catalog.map(([id, title, mediaPath, description, href]) => ({
   id: `agent-${id}`,
-  image: cloudMediaUrl(activityId, mediaPath),
+  image: cloudMediaUrl(activityId, resolveCoverPath(mediaPath)),
   title,
   description,
   href,

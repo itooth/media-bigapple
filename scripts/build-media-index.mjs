@@ -37,6 +37,7 @@ import {
   categoryOfPath,
   parseMediaName,
 } from '../src/lib/mediaNaming.js';
+import { normalizeFolderName } from './lib/activityFolderMap.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // 前端项目内不放任何图片，候选素材目录位于项目之外；可用环境变量覆盖。
@@ -121,7 +122,8 @@ function readManifest(directory) {
 }
 
 // 「一期/二期」这类后缀、以及下划线/空格/短横线的写法差异，不影响认的是同一个活动
-const normalizeFolder = (name) => name.replace(/[\s_\-（）()]/g, '').replace(/(一期|二期)$/u, '');
+// （统一走 scripts/lib/activityFolderMap.mjs，和本地预览索引、预览图床同一套规则）
+const normalizeFolder = normalizeFolderName;
 
 // 活动清单以「素材库」的 manifest 为准，和改造前一致
 const activities = [];
@@ -137,6 +139,7 @@ if (fs.existsSync(LIBRARY_ROOT)) {
       date: manifest.date || '',
       place: manifest.place || manifest.venue || '',
       summary: manifest.summary || `${manifest.title || entry.name}活动资料与成员作品归档。`,
+      sourceFolder: manifest.sourceFolder || '',
     });
   }
 }
@@ -144,7 +147,12 @@ if (fs.existsSync(LIBRARY_ROOT)) {
 // 候选图从「网站压缩素材」现场扫描。目录改名过，所以 id 优先读目录自己的 manifest，
 // 读不到再按目录名去活动清单里认（例如「…活动一期」对应「…活动」）。
 const libraryByNormalized = new Map();
-for (const activity of activities) libraryByNormalized.set(normalizeFolder(activity.folder), activity);
+for (const activity of activities) {
+  for (const key of [activity.folder, activity.sourceFolder, activity.title]) {
+    const normalized = normalizeFolder(key);
+    if (normalized && !libraryByNormalized.has(normalized)) libraryByNormalized.set(normalized, activity);
+  }
+}
 
 const websiteActivities = [];
 const unresolvedFolders = [];
