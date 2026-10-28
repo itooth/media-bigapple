@@ -1,4 +1,0 @@
-interface:
-  display_name: "案例集整理与发布"
-  short_description: "把活动文件夹整理成可审阅、可恢复的统一案例集，保留人工选择并按确认版本发布"
-  default_prompt: "使用 $case-collection-workflow 整理这批活动材料，先给我本地预览，确认后再发布。"
