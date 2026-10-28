@@ -14,6 +14,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'Pillow>=10'
       - run: npm ci --include=dev
       - run: npm test
       - run: npm run build
