@@ -16,9 +16,23 @@ def files(root):
             p=Path(base,name)
             if name not in IGNORED and not name.startswith('._') and not p.is_symlink(): yield p
 
-def scan(source, plan_path):
+def known_judgments(archives):
+    """Reviewed decisions already stored in earlier archives, keyed by content hash."""
+    known={}
+    for a in archives or []:
+        root=Path(a).resolve(); records=[]
+        if (root/'媒体映射.json').exists():
+            records+=[{'sha256':m['originalSha256'],'path':m['originalPath'],'review':m.get('review'),'role':m.get('role'),'selected':m.get('selected',True)} for m in read(root/'媒体映射.json')['media']]
+        if (root/'其他/整理记录.json').exists():
+            records+=[{'sha256':e['sha256'],'path':e.get('targetPath'),'review':e.get('review'),'role':e.get('role'),'selected':e.get('selected',True)} for e in read(root/'其他/整理记录.json')['entries']]
+        for r in records:
+            if r['path'] and (r.get('review') or {}).get('reviewed'): known.setdefault(r['sha256'],{})[(str(root),r['path'])]={**r,'archive':str(root)}
+    return {sha:list(v.values()) for sha,v in known.items()}
+
+def scan(source, plan_path, archives=None):
     source=Path(source).resolve(); target=Path(plan_path).resolve()
     if target.is_relative_to(source): raise ValueError('整理计划放在输入目录外')
+    known=known_judgments(archives)
     old=read(target) if target.exists() else {'version':1,'id':str(uuid.uuid4()),'entries':[]}
     by_path={e['sourcePath']:e for e in old['entries']}; by_hash={}
     for e in old['entries']: by_hash.setdefault(e['sha256'],[]).append(e)
@@ -29,12 +43,18 @@ def scan(source, plan_path):
         if prior and prior['sha256']!=sha: prior=None
         if not prior and len(by_hash.get(sha,[]))==1 and by_hash[sha][0]['sourcePath'] not in source_paths: prior=by_hash[sha][0]
         e=copy.deepcopy(prior) if prior else {'assetId':str(uuid.uuid4()),'targetPath':None,'review':{'reviewed':False},'selected':True}
+        same=known.get(sha,[])
+        # One unambiguous earlier decision is reused; several placements need a human/AI choice.
+        if not prior and len(same)==1:
+            k=same[0]; e.update(targetPath=k['path'],review=copy.deepcopy(k['review']),selected=k['selected'],inheritedFrom={'archive':k['archive'],'path':k['path']})
+            if k.get('role'): e['role']=k['role']
+        elif not prior and same: e['candidates']=[{'archive':k['archive'],'path':k['path']} for k in same]
         e.update(sourcePath=rel,sha256=sha,bytes=p.stat().st_size)
         if not prior: e['originalName']=p.name
         entries.append(e)
     missing=[e for e in old['entries'] if e['sha256'] not in {x['sha256'] for x in entries}]
     old.update(sourceRoot=str(source),entries=entries,missing=missing,scannedAt=now()); write(target,old)
-    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'missing':len(missing)},ensure_ascii=False))
+    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'missing':len(missing)},ensure_ascii=False))
 
 def apply(plan_path, activity):
     plan=read(plan_path); root=Path(activity).resolve(); source=Path(plan['sourceRoot']).resolve()
@@ -52,7 +72,13 @@ def apply(plan_path, activity):
     for src,dest,e in operations:
         dest.parent.mkdir(parents=True,exist_ok=True)
         if not dest.exists(): shutil.copy2(src,dest)
-    record=root/'其他/整理记录.json'; write(record,{**plan,'appliedAt':now()})
+    record=root/'其他/整理记录.json'; merged={**plan,'appliedAt':now()}
+    if record.exists():
+        earlier=read(record); current={e['targetPath'] for e in plan['entries']}
+        kept=[e for e in earlier['entries'] if e.get('targetPath') not in current]
+        merged['entries']=kept+plan['entries']; merged['batches']=earlier.get('batches',[{'id':earlier.get('id'),'sourceRoot':earlier.get('sourceRoot'),'appliedAt':earlier.get('appliedAt')}])
+    merged.setdefault('batches',[]).append({'id':plan['id'],'sourceRoot':plan['sourceRoot'],'appliedAt':merged['appliedAt']})
+    write(record,merged)
     mp=root/'manifest.json'
     if not mp.exists(): write(mp,{'version':6,'id':plan['id'],'uid':plan['id'],'title':'','sourceFolder':root.name,'date':None,'venue':'','organizer':'','coOrganizers':[],'summary':'','tags':[],'assets':[],'caseIds':{},'presentation':{}})
     print('归档复制完成；输入原件保留。')
@@ -90,6 +116,9 @@ def mirror(activity, website_root):
             m.update(status='needs-review',websitePath=None,websiteSha256=None,websiteBytes=None); media.append(m); failures.append(rel); continue
         suffix=Path(prior['websitePath']).suffix if unchanged and prior.get('websitePath') else ('.jpg' if m['mediaType']=='image' else '.mp4')
         dest_rel=(Path(root.name)/Path(rel).parent/(p.stem+'_'+sha[:10]+suffix)).as_posix(); dest=inside(web,dest_rel)
+        if unchanged and prior.get('websitePath') and prior.get('compression')==VERSION:
+            old=inside(web,prior['websitePath'])
+            if old.is_file() and digest(old)==prior.get('websiteSha256'): dest_rel,dest=prior['websitePath'],old
         reusable=unchanged and prior.get('compression')==VERSION and dest.exists() and digest(dest)==prior.get('websiteSha256')
         if not reusable:
             dest.parent.mkdir(parents=True,exist_ok=True)
@@ -182,5 +211,6 @@ def main():
     p=argparse.ArgumentParser(description=__doc__); sub=p.add_subparsers(dest='cmd',required=True)
     for name,second in [('scan','plan'),('apply','activity'),('mirror','website_root'),('backup','output'),('restore','destination')]:
         q=sub.add_parser(name); q.add_argument('source'); q.add_argument(second)
+        if name=='scan': q.add_argument('--archive',action='append',dest='archives',help='已整理活动目录，复用其中已审核的判断')
     a=p.parse_args(); args=vars(a); cmd=args.pop('cmd'); values=list(args.values()); globals()[cmd](*values)
 if __name__=='__main__': main()

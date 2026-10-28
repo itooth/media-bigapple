@@ -135,7 +135,13 @@ def compile_activity(activity, website_root, public_dir=None, uploads=None):
 def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('activity'); p.add_argument('--website-root',required=True)
     p.add_argument('--catalog',required=True); p.add_argument('--out',required=True); p.add_argument('--public-dir'); p.add_argument('--uploads')
-    a=p.parse_args(); catalog=read(a.catalog); event=compile_activity(a.activity,a.website_root,a.public_dir,read(a.uploads) if a.uploads else None)
+    p.add_argument('--backup',help='发布必填：archive.py backup 生成的完整备份包'); p.add_argument('--evidence',help='发布必填：预览确认与备份回执')
+    a=p.parse_args()
+    if a.uploads:
+        # Publication output is only produced for a confirmed, fully backed-up revision.
+        if not (a.backup and a.evidence): raise ValueError('发布需要 --backup 与 --evidence，先完成备份确认')
+        from release_gate import check; check(a.activity,a.backup,a.evidence)
+    catalog=read(a.catalog); event=compile_activity(a.activity,a.website_root,a.public_dir,read(a.uploads) if a.uploads else None)
     matches=[i for i,e in enumerate(catalog) if e['uid']==event['uid']]
     if len(matches)>1: raise ValueError('站点存在重复 UID')
     if matches:

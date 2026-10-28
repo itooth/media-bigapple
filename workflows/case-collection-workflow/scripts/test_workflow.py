@@ -21,6 +21,8 @@ class Workflow(unittest.TestCase):
    event=compile_activity(activity,web,root/'public');self.assertEqual(len(event['detail']['gallery']),1);self.assertEqual(event['detail']['presentation']['partners'][0]['name'],'伙伴')
    image=activity/'01_活动照片/10000_封面_合照.png';image.rename(image.with_name('09900_首页02_人工名称.png'));mirror(activity,web)
    current=read(activity/'媒体映射.json');record=next(m for m in current['media'] if '人工' in m['originalPath']);self.assertEqual(record['assetId'],first['media'][0]['assetId']);self.assertFalse(record['cover']);self.assertTrue(record['homepage'])
+   # Rename alone reuses the existing display copy without re-encoding.
+   self.assertEqual((record['websitePath'],record['processedAt']),(first['media'][0]['websitePath'],first['media'][0]['processedAt']))
    changed=activity/record['originalPath'];Image.new('RGB',(80,60),'blue').save(changed);mirror(activity,web);self.assertEqual(next(m for m in read(activity/'媒体映射.json')['media'] if m['originalPath']==record['originalPath'])['status'],'needs-review')
    changed_map=read(activity/'媒体映射.json');next(m for m in changed_map['media'] if m['originalPath']==record['originalPath'])['review']={'reviewed':True,'evidence':'new fixture reviewed'};write(activity/'媒体映射.json',changed_map);mirror(activity,web)
    tar=root/'full.tar.gz';backup(activity,tar);restore(tar,root/'restored');self.assertEqual(digest(activity/'manifest.json'),digest(root/'restored/manifest.json'))
@@ -30,6 +32,22 @@ class Workflow(unittest.TestCase):
    check(activity,tar,evidence);(activity/'其他/notes.txt').write_text('changed')
    with self.assertRaises(ValueError):check(activity,tar,evidence)
    with self.assertRaises(ValueError):compile_activity(activity,web,root/'public')
+ def test_cross_batch_inherits_reviews(self):
+  with tempfile.TemporaryDirectory() as tmp,contextlib.redirect_stdout(io.StringIO()):
+   root=Path(tmp); first=root/'batch1';first.mkdir(); Image.new('RGB',(40,30),'red').save(first/'a.png')
+   plan=root/'p1.json';scan(first,plan);d=read(plan);d['entries'][0].update(targetPath='01_活动照片/合照.png',review={'reviewed':True,'evidence':'seen'},selected=False);write(plan,d)
+   activity=root/'activity';apply(plan,activity)
+   second=root/'batch2';second.mkdir(); Image.new('RGB',(40,30),'red').save(second/'IMG_0001.png'); Image.new('RGB',(40,30),'green').save(second/'new.png')
+   plan2=root/'p2.json';scan(second,plan2,[activity]);entries={e['sourcePath']:e for e in read(plan2)['entries']}
+   old=entries['IMG_0001.png'];self.assertEqual(old['targetPath'],'01_活动照片/合照.png');self.assertTrue(old['review']['reviewed']);self.assertFalse(old['selected'])
+   self.assertIsNone(entries['new.png']['targetPath'])
+   d=read(plan2);[e.update(targetPath='01_活动照片/新图.png',review={'reviewed':True,'evidence':'seen'}) for e in d['entries'] if e['sourcePath']=='new.png'];write(plan2,d);apply(plan2,activity)
+   record=read(activity/'其他/整理记录.json');self.assertEqual(len(record['batches']),2);self.assertEqual({e['targetPath'] for e in record['entries']},{'01_活动照片/合照.png','01_活动照片/新图.png'})
+ def test_release_requires_backup_gate(self):
+  import subprocess,sys
+  with tempfile.TemporaryDirectory() as tmp:
+   r=subprocess.run([sys.executable,str(Path(__file__).with_name('catalog.py')),tmp,'--website-root',tmp,'--catalog',tmp+'/c.json','--out',tmp+'/o.json','--uploads',tmp+'/u.json'],capture_output=True,text=True)
+   self.assertNotEqual(r.returncode,0);self.assertIn('--backup',r.stderr)
  def test_escape_and_partial(self):
   with tempfile.TemporaryDirectory() as tmp:
    from catalog import inside
