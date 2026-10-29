@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const files = ['Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'index.html', 'vite.config.js'];
 const directories = ['src', 'server', 'bootstrap', 'scripts', 'works'];
-const extensions = new Set(['.js', '.mjs', '.jsx', '.css', '.json', '.png', '.svg']);
+const extensions = new Set(['.js', '.mjs', '.jsx', '.css', '.json', '.png', '.svg', '.html']);
 
 export function prepareRelease(root, destination) {
   if (fs.existsSync(destination)) throw new Error('发布目录已存在，请使用新的目录');
