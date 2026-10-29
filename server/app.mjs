@@ -139,12 +139,12 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         const current = store.source(uid);
         if (!current) throw failure(404, '服务器上还没有这场活动，请用整场发布新增');
         if (current.detail) throw failure(409, '这场活动是旧格式，请先用完整整理目录整场更新一次');
-        if (!Array.isArray(body?.assets) && !Array.isArray(body?.cases)) throw failure(400, '没有要追加的素材');
+        if (![body?.assets, body?.cases, body?.videos].some(Array.isArray)) throw failure(400, '没有要追加的素材');
         if ((body.assets || []).some((item) => item?.isCover === 1)) throw failure(400, '追加的照片不能带「封面」标记；要换封面请整场更新');
-        const next = { ...current, assets: mergeByPath(current.assets, body.assets || []), cases: mergeByPath(current.cases, body.cases || []) };
+        const next = { ...current, record: { ...current.record, videos: mergeByPath(current.record.videos, body.videos || []) }, assets: mergeByPath(current.assets, body.assets || []), cases: mergeByPath(current.cases, body.cases || []) };
         renderSource(uid, next);
         store.upsertActivity(next, actor);
-        console.info('[api/activities] appended', { uid, actor, assets: body.assets?.length || 0, cases: body.cases?.length || 0 });
+        console.info('[api/activities] appended', { uid, actor, assets: body.assets?.length || 0, cases: body.cases?.length || 0, videos: body.videos?.length || 0 });
         return send(res, 200, { uid, created: false, activities: store.events().length });
       }
       if (activityMatch && method === 'DELETE') {

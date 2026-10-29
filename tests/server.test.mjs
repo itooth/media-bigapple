@@ -178,12 +178,13 @@ test('team members add, update and append to one activity; it renders on read an
   assert.equal((await put({ ...newSource, uid: 'other-folder', record: { ...newSource.record, folder: 'other-folder' } })).status, 409);
   // Append two photos; a cover mark is rejected because it would fight the existing cover.
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09500_封面_新.jpg', { isCover: 1 })] } })).status, 400);
-  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg'), photo('09900_签到.jpg')] } })).status, 200);
+  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg'), photo('09900_签到.jpg'), photo('06000_作品视频_演示.mp4')], videos: [{ path: '01_活动照片/06000_作品视频_演示.mp4', name: '06000_作品视频_演示.mp4' }] } })).status, 200);
   await f.restart();
   const site = await (await f.request('/api/site')).json();
   assert.deepEqual(site.events.map((e) => e.partner), ['新活动改名', '活动甲', '活动乙']);
   assert.deepEqual(site.events[0].detail.gallery.map((g) => g.caption), ['封面_合照', '签到', '讲解']);
   assert.equal(site.events[0].image, 'https://media.bigapple.app/10000_封面_合照.jpg');
+  assert.deepEqual(site.events[0].detail.videos.map((v) => v.title), ['作品视频_演示']);
 });
 
 test('legacy rendered rows cannot be appended to until replaced with a full update', async (t) => {
