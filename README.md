@@ -46,6 +46,7 @@ src/lib/renderEvent.js        团队上传，只存链接              团队直
 - 认人：请求带 BigApple 部署身份头（`x-bigapple-publisher-id`、`Authorization: Bearer <部署令牌>`、`x-bigapple-skill-id/version`），服务器向 BigApple 查 `media` 应用，查得到 = 在团队部署白名单里才放行。团队成员用「活动素材整理专家」Skill 完成，不手写请求。
 - 撤下活动：管理员登录 `/admin` 后 `DELETE /api/activities/<uid>`（保留旧版本）。
 - 原始记录由 `src/data/events.js` 的 `activitySources` 从素材目录收集（Skill 在本地跑构建取出这一场）。
+- `works/<名字>/index.html`：从旧站收编的单文件作品网页，访问地址 `/works/<名字>/`，以 CSP sandbox 运行（不同源，碰不到管理后台）。只放无外部依赖的单文件；新作品优先用 BigApple 部署成独立网址，不往这里加。
 
 ## 开发与构建
 
