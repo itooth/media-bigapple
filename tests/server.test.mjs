@@ -158,26 +158,37 @@ test('production Logo uploads use object storage without exposing its token', as
 });
 
 const teamHeaders = { 'x-bigapple-publisher-id': 'pub_team', Authorization: 'Bearer badt_team', 'Content-Type': 'application/json' };
-const newEvent = { id: '10-29-new', uid: '2026-10-29_新活动', partner: '新活动', sourceDate: '2026-10-29', tags: [], detail: { gallery: [] } };
+const photo = (name, extra = {}) => ({ activityId: '10-29-new', path: `01_活动照片/${name}`, name, category: '活动', rating: Number(name.slice(0, 5)), url: `https://media.bigapple.app/${name}`, ...extra });
+const newSource = { uid: '2026-10-29_新活动', record: { id: '10-29-new', folder: '2026-10-29_新活动', title: '新活动', date: '2026-10-29' }, assets: [photo('10000_封面_合照.jpg', { isCover: 1 })], cases: [], social: [] };
 
-test('team members add and update one activity without touching others; it survives restart', async (t) => {
+test('team members add, update and append to one activity; it renders on read and survives restart', async (t) => {
   const seen = [];
   const f = await fixture(t, { isTeamMember: async (headers) => { seen.push(headers); return headers['x-bigapple-publisher-id'] === 'pub_team'; } });
-  const put = (event, headers = teamHeaders) => f.request(`/api/activities/${encodeURIComponent(event.uid)}`, { method: 'PUT', headers, body: { event } });
-  assert.equal((await put(newEvent, { 'Content-Type': 'application/json' })).status, 401);
-  assert.equal((await put(newEvent, { ...teamHeaders, 'x-bigapple-publisher-id': 'pub_outsider' })).status, 403);
-  const created = await put(newEvent);
+  const url = `/api/activities/${encodeURIComponent(newSource.uid)}`;
+  const put = (source, headers = teamHeaders) => f.request(`/api/activities/${encodeURIComponent(source.uid)}`, { method: 'PUT', headers, body: { source } });
+  assert.equal((await put(newSource, { 'Content-Type': 'application/json' })).status, 401);
+  assert.equal((await put(newSource, { ...teamHeaders, 'x-bigapple-publisher-id': 'pub_outsider' })).status, 403);
+  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg')] } })).status, 404);
+  const created = await put(newSource);
   assert.equal(created.status, 201); assert.equal((await created.json()).activities, 3);
   assert.equal(seen.at(-1).authorization, 'Bearer badt_team');
-  const updated = await put({ ...newEvent, partner: '新活动改名' });
-  assert.equal(updated.status, 200);
-  assert.equal((await f.request(`/api/activities/${encodeURIComponent(newEvent.uid)}`, { method: 'PUT', headers: teamHeaders, body: { event: { ...newEvent, uid: 'other-folder' } } })).status, 400);
+  assert.equal((await put({ ...newSource, record: { ...newSource.record, title: '新活动改名' } })).status, 200);
+  assert.equal((await f.request(url, { method: 'PUT', headers: teamHeaders, body: { source: { ...newSource, uid: 'other-folder' } } })).status, 400);
   // Same public id under a different folder is a different activity: reject instead of merging.
-  assert.equal((await put({ ...newEvent, uid: 'other-folder' })).status, 409);
-  assert.equal((await put({ ...events[0], uid: 'clash', id: '10-29-new' })).status, 409);
+  assert.equal((await put({ ...newSource, uid: 'other-folder', record: { ...newSource.record, folder: 'other-folder' } })).status, 409);
+  // Append two photos; a cover mark is rejected because it would fight the existing cover.
+  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09500_封面_新.jpg', { isCover: 1 })] } })).status, 400);
+  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg'), photo('09900_签到.jpg')] } })).status, 200);
   await f.restart();
   const site = await (await f.request('/api/site')).json();
   assert.deepEqual(site.events.map((e) => e.partner), ['新活动改名', '活动甲', '活动乙']);
+  assert.deepEqual(site.events[0].detail.gallery.map((g) => g.caption), ['封面_合照', '签到', '讲解']);
+  assert.equal(site.events[0].image, 'https://media.bigapple.app/10000_封面_合照.jpg');
+});
+
+test('legacy rendered rows cannot be appended to until replaced with a full update', async (t) => {
+  const f = await fixture(t, { isTeamMember: async () => true });
+  assert.equal((await f.request('/api/activities/activity-a', { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg')] } })).status, 409);
 });
 
 test('only an admin session can remove an activity', async (t) => {

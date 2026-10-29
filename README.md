@@ -34,17 +34,18 @@ Node.js 服务 ─────── SQLite /data/resellers.sqlite
 ## 活动数据在哪
 
 ```text
-GitHub（本仓库）          图床 media.bigapple.app        服务器 /data（SQLite）
-页面、样式、接口代码       照片、视频、主图（按哈希）      每场活动一条记录 ← 唯一真源
-改 UI 才部署              团队上传，只存链接              团队直接写入，不用部署
+GitHub（本仓库）              图床 media.bigapple.app        服务器 /data（SQLite）
+皮肤 + 生成规则               照片、视频、主图（按哈希）      每场活动一条「原始记录」← 唯一真源
+src/lib/renderEvent.js        团队上传，只存链接              团队直接写入，不用部署
+        └──────── 打开页面时：原始记录 → renderEvent → 页面 ────────┘
 ```
 
-- 活动数据以服务器数据库为准。部署只换代码，不覆盖活动；`src/data` 打包出的目录只在空数据库（新环境）时做一次初始导入。
-- 新增或更新一场活动：`PUT /api/activities/<uid>`，body `{ "event": {...} }`。只写这一场，旧版本记入 `activity_revisions`。
-  请求带 BigApple 部署身份头（`x-bigapple-publisher-id`、`Authorization: Bearer <部署令牌>`、`x-bigapple-skill-id/version`），服务器拿它向 BigApple 查 `media` 应用，查得到 = 在团队部署白名单里，才放行。
-  团队成员用「活动素材整理专家」Skill 完成，不手写请求。
-- 撤下活动：管理员登录 `/admin` 后 `DELETE /api/activities/<uid>`（保留旧版本，可再写回）。
-- 活动 JSON 的字段由 `src/data/events.js` 生成（Skill 在本地跑构建取出这一场）。改了生成规则，已在服务器上的旧活动不会自动更新，要重新写入受影响的活动。
+- 服务器存原始记录（manifest、媒体索引条目及云端链接、案例、外链），每次读取用当前代码的 `renderEvent` 渲染（46 场约 5ms，按变更缓存）。换皮肤或改渲染规则只需部署代码，所有活动自动按新规则显示。
+- 部署只换代码，不覆盖活动；`dist-server/sources.json` 只在空数据库（新环境）时导入。存量的旧格式行，只有当打包的原始记录渲染结果与它逐字节一致时才自动替换成原始记录。
+- 新增或整场更新：`PUT /api/activities/<uid>`，body `{ "source": {...} }`。追加照片/案例：`PATCH /api/activities/<uid>`，body `{ "assets": [...], "cases": [...] }`，同路径替换、新路径追加，追加批次不能带封面标记。旧版本都记入 `activity_revisions`。
+- 认人：请求带 BigApple 部署身份头（`x-bigapple-publisher-id`、`Authorization: Bearer <部署令牌>`、`x-bigapple-skill-id/version`），服务器向 BigApple 查 `media` 应用，查得到 = 在团队部署白名单里才放行。团队成员用「活动素材整理专家」Skill 完成，不手写请求。
+- 撤下活动：管理员登录 `/admin` 后 `DELETE /api/activities/<uid>`（保留旧版本）。
+- 原始记录由 `src/data/events.js` 的 `activitySources` 从素材目录收集（Skill 在本地跑构建取出这一场）。
 
 ## 开发与构建
 

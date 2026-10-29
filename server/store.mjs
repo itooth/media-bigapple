@@ -2,6 +2,11 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { renderEvent, sortEvents } from '../src/lib/renderEvent.js';
+
+// Rows written before sources were stored hold an already-rendered event; serve those as is.
+const isRenderedEvent = (payload) => Boolean(payload?.detail);
+const renderStored = (payload) => (isRenderedEvent(payload) ? payload : renderEvent(payload));
 
 export function openStore(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -31,6 +36,7 @@ export function openStore(dataDir) {
     INSERT INTO sqlite_sequence(name,seq) SELECT 'resellers',6023
       WHERE NOT EXISTS(SELECT 1 FROM sqlite_sequence WHERE name='resellers');
     PRAGMA user_version=2; COMMIT;`);
+  let rendered = null;
   const record = (row) => {
     if (!row) return null;
     const domain = db.prepare('SELECT hostname FROM reseller_domains WHERE reseller_id=?').get(row.id);
@@ -46,27 +52,43 @@ export function openStore(dataDir) {
       db.prepare('INSERT INTO reseller_domains(reseller_id,hostname) VALUES (?,?) ON CONFLICT(reseller_id) DO UPDATE SET hostname=excluded.hostname').run(id, hostname);
       return this.get(id);
     },
-    // The server database is the activity source of truth. A release's bundled catalog
-    // only seeds an empty database; afterwards activities change through upsertActivity.
-    syncCatalog(events) {
-      if (!Array.isArray(events) || !events.length || events.some((e) => typeof e.uid !== 'string' || !e.uid) || new Set(events.map((e) => e.uid)).size !== events.length) throw new Error('活动目录为空或包含重复编号');
+    // The server database is the activity source of truth. Each row stores the activity's
+    // source record (raw inputs) and is rendered on read, so a new skin restyles every activity.
+    // A release's bundled sources only seed an empty database.
+    syncCatalog(sources) {
+      if (!Array.isArray(sources) || !sources.length || sources.some((e) => typeof e.uid !== 'string' || !e.uid) || new Set(sources.map((e) => e.uid)).size !== sources.length) throw new Error('活动目录为空或包含重复编号');
       db.exec('BEGIN IMMEDIATE');
       try {
         if (!db.prepare('SELECT 1 FROM activities LIMIT 1').get()) {
           const insert = db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,?,1)');
-          events.forEach((event, index) => insert.run(event.uid, JSON.stringify(event), index));
+          sources.forEach((source, index) => insert.run(source.uid, JSON.stringify(source), index));
+        } else {
+          // One-time upgrade of rows stored as rendered events: swap in the bundled source only
+          // when it renders to exactly the stored event, so no team update is ever reverted.
+          const bundled = new Map(sources.map((source) => [source.uid, source]));
+          const replace = db.prepare('UPDATE activities SET payload=? WHERE uid=?');
+          for (const row of db.prepare('SELECT uid, payload FROM activities').all()) {
+            const stored = JSON.parse(row.payload); const source = bundled.get(row.uid);
+            if (isRenderedEvent(stored) && source && !isRenderedEvent(source) && JSON.stringify(renderEvent(source)) === row.payload) replace.run(JSON.stringify(source), row.uid);
+          }
         }
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
+      rendered = null;
     },
-    // Adds or replaces one activity; the previous version is kept in activity_revisions.
-    upsertActivity(event, actor) {
+    source(uid) {
+      const row = db.prepare('SELECT payload FROM activities WHERE uid=? AND active=1').get(uid);
+      return row ? JSON.parse(row.payload) : null;
+    },
+    // Adds or replaces one activity's source; the previous version is kept in activity_revisions.
+    upsertActivity(source, actor) {
       db.exec('BEGIN IMMEDIATE');
       try {
-        const previous = db.prepare('SELECT payload, active FROM activities WHERE uid=?').get(event.uid);
-        db.prepare('INSERT INTO activity_revisions(uid,payload,actor,created_at) VALUES (?,?,?,?)').run(event.uid, previous?.active ? previous.payload : null, actor, new Date().toISOString());
-        db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,0,1) ON CONFLICT(uid) DO UPDATE SET payload=excluded.payload,active=1').run(event.uid, JSON.stringify(event));
+        const previous = db.prepare('SELECT payload, active FROM activities WHERE uid=?').get(source.uid);
+        db.prepare('INSERT INTO activity_revisions(uid,payload,actor,created_at) VALUES (?,?,?,?)').run(source.uid, previous?.active ? previous.payload : null, actor, new Date().toISOString());
+        db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,0,1) ON CONFLICT(uid) DO UPDATE SET payload=excluded.payload,active=1').run(source.uid, JSON.stringify(source));
         db.exec('COMMIT');
+        rendered = null;
         return { created: !previous?.active };
       } catch (error) { db.exec('ROLLBACK'); throw error; }
     },
@@ -78,15 +100,20 @@ export function openStore(dataDir) {
         db.prepare('INSERT INTO activity_revisions(uid,payload,actor,created_at) VALUES (?,?,?,?)').run(uid, row.payload, actor, new Date().toISOString());
         db.prepare('UPDATE activities SET active=0 WHERE uid=?').run(uid);
         db.exec('COMMIT');
+        rendered = null;
         return true;
       } catch (error) { db.exec('ROLLBACK'); throw error; }
     },
-    // Newest activity first, the same order the bundled catalog used (sourceDate descending).
-    events: () => db.prepare("SELECT payload FROM activities WHERE active=1 ORDER BY json_extract(payload,'$.sourceDate') DESC, position").all().map((row) => JSON.parse(row.payload)),
+    // Newest activity first (sourceDate descending), rendered once per change.
+    events() {
+      rendered ||= sortEvents(db.prepare('SELECT payload FROM activities WHERE active=1 ORDER BY position').all().map((row) => renderStored(JSON.parse(row.payload))));
+      return rendered;
+    },
     siteEvents(id) {
-      return db.prepare(`SELECT a.payload FROM activities a JOIN resellers r ON r.id=?
-        WHERE a.active=1 AND EXISTS (SELECT 1 FROM json_each(r.activity_ids) s WHERE s.value=a.uid)
-        ORDER BY json_extract(a.payload,'$.sourceDate') DESC, a.position`).all(id).map((row) => JSON.parse(row.payload));
+      const record = this.get(id);
+      if (!record) return [];
+      const selected = new Set(record.activityIds);
+      return this.events().filter((event) => selected.has(event.uid));
     },
     hasBootstrap: (key) => !!db.prepare('SELECT 1 FROM bootstrap_receipts WHERE key=?').get(key),
     getClientKey: (id) => db.prepare('SELECT client_key FROM resellers WHERE id=?').get(id)?.client_key,

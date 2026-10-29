@@ -11,7 +11,7 @@ import { initializeDatabase } from '../server/bootstrap.mjs';
 import { backupData } from '../scripts/backup-data.mjs';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE9sAAAAASUVORK5CYII=', 'base64');
-const events = [{ uid: 'a', partner: '活动甲', detail: { gallery: ['original-photo'] } }, { uid: 'b', partner: '活动乙' }];
+const events = [{ uid: 'a', partner: '活动甲', detail: { gallery: ['original-photo'] } }, { uid: 'b', partner: '活动乙', detail: {} }];
 function setup(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bigapple-bootstrap-'));
   const seedDir = path.join(root, 'seed'), dataDir = path.join(root, 'data');

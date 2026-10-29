@@ -5,6 +5,7 @@ import path from 'node:path';
 import { openStore } from './store.mjs';
 import { saveLogo } from './logos.mjs';
 import { respond } from './response.mjs';
+import { renderEvent } from '../src/lib/renderEvent.js';
 
 const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -39,13 +40,18 @@ async function resolveTeamMember(headers) {
 }
 const WRITER_HEADERS = ['x-bigapple-publisher-id', 'authorization', 'x-bigapple-skill-id', 'x-bigapple-skill-version'];
 
-function validateActivity(uid, event) {
-  if (!event || typeof event !== 'object' || event.uid !== uid) throw failure(400, '活动 uid 和地址不一致');
+// A source is accepted only if it renders to a complete event under the same uid.
+function renderSource(uid, source) {
   if (!/^[^/\\\u0000-\u001f]{1,120}$/.test(uid)) throw failure(400, '活动 uid 无效');
+  if (!source || typeof source !== 'object' || source.uid !== uid || !source.record || typeof source.record !== 'object' || !Array.isArray(source.assets ?? [])) throw failure(400, '活动数据格式不对，或 uid 和地址不一致');
+  let event;
+  try { event = renderEvent(source); } catch { throw failure(400, '活动数据无法渲染'); }
+  if (event.uid !== uid) throw failure(400, '活动 uid 和地址不一致');
   for (const key of ['id', 'partner', 'sourceDate']) if (typeof event[key] !== 'string' || !event[key].trim()) throw failure(400, `活动缺少 ${key}`);
-  if (!event.detail || typeof event.detail !== 'object') throw failure(400, '活动缺少 detail');
   return event;
 }
+// Append: same-path entries are replaced, new ones added; everything else in the source stays.
+const mergeByPath = (current = [], added = []) => [...current.filter((item) => !added.some((next) => next.path === item.path)), ...added];
 
 export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', isTeamMember = resolveTeamMember }) {
   if (!adminPassword || adminPassword.length < 4 || adminPassword.length > 512 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
@@ -53,6 +59,10 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
   const store = openStore(dataDir);
   try { store.syncCatalog(events); }
   catch (error) { store.close(); throw error; }
+  async function activityBody(req) {
+    try { return JSON.parse((await readBody(req, 16 * 1024 * 1024)).toString()); }
+    catch (error) { if (error.status) throw error; throw failure(400, '请求内容无效'); }
+  }
   const teamCache = new Map(); const teamCacheMs = 10 * 60 * 1000;
   async function requireTeamMember(req) {
     const headers = Object.fromEntries(WRITER_HEADERS.map((name) => [name, req.headers[name]]).filter(([, value]) => typeof value === 'string' && value));
@@ -114,14 +124,28 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       if (activityMatch && method === 'PUT') {
         const uid = decodeURIComponent(activityMatch[1]);
         const actor = await requireTeamMember(req);
-        let body;
-        try { body = JSON.parse((await readBody(req, 4 * 1024 * 1024)).toString()); } catch (error) { if (error.status) throw error; throw failure(400, '请求内容无效'); }
-        const event = validateActivity(uid, body?.event);
+        const body = await activityBody(req);
+        const event = renderSource(uid, body?.source);
         const clash = store.events().find((e) => e.id === event.id && e.uid !== uid);
         if (clash) throw failure(409, `活动 id ${event.id} 已被「${clash.partner}」使用，请换一个 id`);
-        const { created } = store.upsertActivity(event, actor);
+        const { created } = store.upsertActivity(body.source, actor);
         console.info('[api/activities] saved', { uid, actor, created });
         return send(res, created ? 201 : 200, { uid, created, activities: store.events().length });
+      }
+      if (activityMatch && method === 'PATCH') {
+        const uid = decodeURIComponent(activityMatch[1]);
+        const actor = await requireTeamMember(req);
+        const body = await activityBody(req);
+        const current = store.source(uid);
+        if (!current) throw failure(404, '服务器上还没有这场活动，请用整场发布新增');
+        if (current.detail) throw failure(409, '这场活动是旧格式，请先用完整整理目录整场更新一次');
+        if (!Array.isArray(body?.assets) && !Array.isArray(body?.cases)) throw failure(400, '没有要追加的素材');
+        if ((body.assets || []).some((item) => item?.isCover === 1)) throw failure(400, '追加的照片不能带「封面」标记；要换封面请整场更新');
+        const next = { ...current, assets: mergeByPath(current.assets, body.assets || []), cases: mergeByPath(current.cases, body.cases || []) };
+        renderSource(uid, next);
+        store.upsertActivity(next, actor);
+        console.info('[api/activities] appended', { uid, actor, assets: body.assets?.length || 0, cases: body.cases?.length || 0 });
+        return send(res, 200, { uid, created: false, activities: store.events().length });
       }
       if (activityMatch && method === 'DELETE') {
         requireMutation(req);

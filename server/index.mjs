@@ -8,7 +8,8 @@ import { backupData } from '../scripts/backup-data.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const options = {
-  events: JSON.parse(fs.readFileSync(path.join(root, 'dist-server/events.json'), 'utf8')),
+  // Bundled activity sources only seed an empty database (see store.syncCatalog).
+  events: JSON.parse(fs.readFileSync(path.join(root, 'dist-server/sources.json'), 'utf8')),
   dataDir: process.env.BIGAPPLE_DATA_DIR || path.join(root, '.data'),
   distDir: path.join(root, 'dist'), adminPassword: process.env.ADMIN_PASSWORD,
   secureCookies: process.env.NODE_ENV === 'production', origin: process.env.APP_ORIGIN || '',
