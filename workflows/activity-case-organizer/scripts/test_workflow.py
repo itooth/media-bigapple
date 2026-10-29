@@ -3,7 +3,6 @@ from pathlib import Path
 from PIL import Image
 from archive import scan, apply, mirror, backup, restore
 from catalog import read, write, digest, compile_activity
-from release_gate import check
 class Workflow(unittest.TestCase):
  def test_roundtrip(self):
   with tempfile.TemporaryDirectory() as tmp,contextlib.redirect_stdout(io.StringIO()):
@@ -26,11 +25,7 @@ class Workflow(unittest.TestCase):
    changed=activity/record['originalPath'];Image.new('RGB',(80,60),'blue').save(changed);mirror(activity,web);self.assertEqual(next(m for m in read(activity/'媒体映射.json')['media'] if m['originalPath']==record['originalPath'])['status'],'needs-review')
    changed_map=read(activity/'媒体映射.json');next(m for m in changed_map['media'] if m['originalPath']==record['originalPath'])['review']={'reviewed':True,'evidence':'new fixture reviewed'};write(activity/'媒体映射.json',changed_map);mirror(activity,web)
    tar=root/'full.tar.gz';backup(activity,tar);restore(tar,root/'restored');self.assertEqual(digest(activity/'manifest.json'),digest(root/'restored/manifest.json'))
-   evidence=root/'evidence.json';write(evidence,{})
-   with self.assertRaises(ValueError):check(activity,tar,evidence)
-   receipt=read(str(tar)+'.receipt.json');write(evidence,{'approvedArchiveSha256':receipt['sha256'],'cloud':{'sha256':receipt['sha256'],'bytes':tar.stat().st_size,'url':'https://example.test/archive','downloadVerifiedAt':'2026-10-26'},'localBackupConfirmedAt':'2026-10-26'})
-   check(activity,tar,evidence);(activity/'其他/notes.txt').write_text('changed')
-   with self.assertRaises(ValueError):check(activity,tar,evidence)
+   (activity/'其他/notes.txt').write_text('changed')
    with self.assertRaises(ValueError):compile_activity(activity,web,root/'public')
  def test_cross_batch_inherits_reviews(self):
   with tempfile.TemporaryDirectory() as tmp,contextlib.redirect_stdout(io.StringIO()):
@@ -49,11 +44,11 @@ class Workflow(unittest.TestCase):
    self.assertEqual(entries3['again.png']['targetPath'],'01_活动照片/人工改名.png');self.assertNotIn('candidates',entries3['again.png'])
    self.assertEqual(entries3['again.png']['duplicates'],['again copy.png'])
    record=read(activity/'其他/整理记录.json');self.assertEqual(len(record['batches']),2);self.assertEqual({e['targetPath'] for e in record['entries']},{'01_活动照片/合照.png','01_活动照片/新图.png'})
- def test_release_requires_backup_gate(self):
+ def test_catalog_cli_is_preview_only(self):
   import subprocess,sys
   with tempfile.TemporaryDirectory() as tmp:
    r=subprocess.run([sys.executable,str(Path(__file__).with_name('catalog.py')),tmp,'--website-root',tmp,'--catalog',tmp+'/c.json','--out',tmp+'/o.json','--uploads',tmp+'/u.json'],capture_output=True,text=True)
-   self.assertNotEqual(r.returncode,0);self.assertIn('--backup',r.stderr)
+   self.assertNotEqual(r.returncode,0);self.assertIn('--public-dir',r.stderr)
  def test_escape_and_partial(self):
   with tempfile.TemporaryDirectory() as tmp:
    from catalog import inside

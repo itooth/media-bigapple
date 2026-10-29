@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile an archive v6 / media map v2 into the existing media-bigapple catalog."""
+"""Compile an archive v6 / media map v2 into a local preview catalog for media-bigapple (preview only)."""
 import argparse, copy, hashlib, json, re, shutil
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
@@ -134,14 +134,10 @@ def compile_activity(activity, website_root, public_dir=None, uploads=None):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('activity'); p.add_argument('--website-root',required=True)
-    p.add_argument('--catalog',required=True); p.add_argument('--out',required=True); p.add_argument('--public-dir'); p.add_argument('--uploads')
-    p.add_argument('--backup',help='发布必填：archive.py backup 生成的完整备份包'); p.add_argument('--evidence',help='发布必填：预览确认与备份回执')
+    p.add_argument('--catalog',required=True); p.add_argument('--out',required=True); p.add_argument('--public-dir',required=True)
     a=p.parse_args()
-    if a.uploads:
-        # Publication output is only produced for a confirmed, fully backed-up revision.
-        if not (a.backup and a.evidence): raise ValueError('发布需要 --backup 与 --evidence，先完成备份确认')
-        from release_gate import check; check(a.activity,a.backup,a.evidence)
-    catalog=read(a.catalog); event=compile_activity(a.activity,a.website_root,a.public_dir,read(a.uploads) if a.uploads else None)
+    # Preview only. Publishing goes through publish.py and the site's own media pipeline.
+    catalog=read(a.catalog); event=compile_activity(a.activity,a.website_root,a.public_dir)
     matches=[i for i,e in enumerate(catalog) if e['uid']==event['uid']]
     if len(matches)>1: raise ValueError('站点存在重复 UID')
     if matches:

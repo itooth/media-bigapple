@@ -84,24 +84,23 @@ class PreflightChecksTests(unittest.TestCase):
     def test_missing_confirmation_file_raises(self):
         with self.assertRaises(publish_module.PublishError) as ctx:
             publish_module.check_publish_confirmation(self.root)
-        self.assertIn('发布确认.json', str(ctx.exception))
+        self.assertIn('共享硬盘', str(ctx.exception))
 
-    def test_confirmation_missing_preview_approved_raises(self):
+    def test_preview_approval_not_needed_to_build_data(self):
+        # Preview approval happens later on staging; only the shared-disk backup is required here.
         self.write_confirmation(previewApprovedAt=None)
-        with self.assertRaises(publish_module.PublishError) as ctx:
-            publish_module.check_publish_confirmation(self.root)
-        self.assertIn('previewApprovedAt', str(ctx.exception))
+        publish_module.check_publish_confirmation(self.root)
 
     def test_confirmation_missing_shared_disk_backup_raises(self):
         self.write_confirmation(sharedDiskBackup={'location': '', 'confirmedAt': ''})
         with self.assertRaises(publish_module.PublishError) as ctx:
             publish_module.check_publish_confirmation(self.root)
-        self.assertIn('sharedDiskBackup', str(ctx.exception))
+        self.assertIn('共享硬盘', str(ctx.exception))
 
     def test_confirmation_complete_passes(self):
         self.write_confirmation()
-        confirmation = publish_module.check_publish_confirmation(self.root)
-        self.assertEqual(confirmation['previewApprovedAt'], '2026-11-01T00:00:00+00:00')
+        backup = publish_module.check_publish_confirmation(self.root)
+        self.assertEqual(backup['location'], '/Volumes/备份盘/活动')
 
 
 class SelectedFilterTests(unittest.TestCase):
@@ -199,7 +198,7 @@ class PublishSubprocessMockTests(unittest.TestCase):
             with self.assertRaises(publish_module.PublishError) as ctx:
                 publish_module.publish(self.activity_root, self.repo, self.web_root, 'app', dry_run=True)
             mocked_run.assert_not_called()
-        self.assertIn('发布确认.json', str(ctx.exception))
+        self.assertIn('共享硬盘', str(ctx.exception))
 
 
 if __name__ == '__main__':

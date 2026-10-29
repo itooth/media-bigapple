@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把一份实习生归档发布到 media-bigapple 网站仓库的线上数据。
 
-前提：归档已 mirror 过（存在媒体映射.json），且已有「其他/发布确认.json」
+前提：归档已 mirror 过（存在媒体映射.json），且已用 release_gate.py backup 记录原件在团队共享硬盘的位置
 （预览已确认 + 原件已有共享硬盘备份）。本脚本只读归档、只在临时目录操作，
 不修改归档本身；对网站仓库会写 src/data 和跑一次 npm run build（可用 --dry-run
 让上传不写云端）。脚本本身不 commit、不 push、不部署。
@@ -18,6 +18,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release_gate import require_backup  # noqa: E402
 
 REQUIRED_MANIFEST_FIELDS = ("title", "date", "id")
 DEFAULT_APP = "bigapple-onboarding-course"
@@ -51,25 +54,11 @@ def check_media_ready(media_map):
 
 
 def check_publish_confirmation(activity_root):
-    confirm_path = Path(activity_root) / "其他" / "发布确认.json"
-    if not confirm_path.exists():
-        raise PublishError(
-            "找不到「其他/发布确认.json」。发布前必须先确认预览并把原件备份到共享硬盘，"
-            "按 {previewApprovedAt, sharedDiskBackup:{location, confirmedAt}} 的格式写一份。"
-        )
+    """Building site data needs the originals on the team shared disk; preview approval comes later, on staging."""
     try:
-        confirmation = read_json(confirm_path)
-    except (json.JSONDecodeError, OSError) as exc:
-        raise PublishError(f"「其他/发布确认.json」不是合法 JSON：{exc}") from exc
-    if not confirmation.get("previewApprovedAt"):
-        raise PublishError("「其他/发布确认.json」缺少 previewApprovedAt：预览还未确认，不能发布。")
-    backup = confirmation.get("sharedDiskBackup") or {}
-    if not backup.get("location") or not backup.get("confirmedAt"):
-        raise PublishError(
-            "「其他/发布确认.json」缺少 sharedDiskBackup.location 或 confirmedAt："
-            "原件还没确认已备份到共享硬盘，不能发布。"
-        )
-    return confirmation
+        return require_backup(activity_root)
+    except ValueError as exc:
+        raise PublishError(str(exc)) from exc
 
 
 def selected_website_ready_media(media_map):

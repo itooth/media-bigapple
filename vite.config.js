@@ -537,9 +537,12 @@ function cleanSocialLabel(value, url) {
 // 本地完全没碰到的 key（活动没出现在本次扫描里）原样保留，被删除活动除外。
 function mergeKeepingMissingKeys(localMap, previousMap) {
   const result = { ...localMap };
+  // caseMedia/socialLinks 同时按 id 和活动目录名存两份；删除活动时两份都不能留。
+  const removedFolders = new Set((contentSnapshot.activityManifests || [])
+    .filter((item) => removeActivityIds.has(item.id)).map((item) => item.folder));
   for (const [key, value] of Object.entries(previousMap || {})) {
     if (key in result) continue;
-    if (removeActivityIds.has(key)) continue;
+    if (removeActivityIds.has(key) || removedFolders.has(key)) continue;
     result[key] = value;
   }
   return result;
