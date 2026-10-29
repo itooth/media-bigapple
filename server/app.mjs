@@ -25,20 +25,52 @@ async function jsonBody(req) {
   catch (error) { if (error.status) throw error; throw failure(400, '请求内容无效'); }
 }
 
-export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '' }) {
+// Team writers are the BigApple deployment admins. Only they can resolve the shared `media`
+// app with their own deployment credential, so that lookup is the membership check.
+const DEPLOY_API = 'https://api.bigapple.work';
+async function resolveTeamMember(headers) {
+  const response = await fetch(`${DEPLOY_API}/api/apps/resolve`, {
+    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: 'media' }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (response.status === 426) throw failure(426, '「APP 部署专员」Skill 版本过旧，请在技能页更新后重试');
+  if (!response.ok) return false;
+  return Boolean((await response.json()).app);
+}
+const WRITER_HEADERS = ['x-bigapple-publisher-id', 'authorization', 'x-bigapple-skill-id', 'x-bigapple-skill-version'];
+
+function validateActivity(uid, event) {
+  if (!event || typeof event !== 'object' || event.uid !== uid) throw failure(400, '活动 uid 和地址不一致');
+  if (!/^[^/\\\u0000-\u001f]{1,120}$/.test(uid)) throw failure(400, '活动 uid 无效');
+  for (const key of ['id', 'partner', 'sourceDate']) if (typeof event[key] !== 'string' || !event[key].trim()) throw failure(400, `活动缺少 ${key}`);
+  if (!event.detail || typeof event.detail !== 'object') throw failure(400, '活动缺少 detail');
+  return event;
+}
+
+export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', isTeamMember = resolveTeamMember }) {
   if (!adminPassword || adminPassword.length < 4 || adminPassword.length > 512 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
   if (!events.length) throw new Error('活动目录为空');
   const store = openStore(dataDir);
-  try { store.syncCatalog(events); events = store.events(); }
+  try { store.syncCatalog(events); }
   catch (error) { store.close(); throw error; }
-  const knownIds = new Set(events.map((e) => e.uid));
+  const teamCache = new Map(); const teamCacheMs = 10 * 60 * 1000;
+  async function requireTeamMember(req) {
+    const headers = Object.fromEntries(WRITER_HEADERS.map((name) => [name, req.headers[name]]).filter(([, value]) => typeof value === 'string' && value));
+    if (headers.authorization?.startsWith('Bearer ') !== true || !headers['x-bigapple-publisher-id']) throw failure(401, '缺少 BigApple 部署身份');
+    const key = digest(headers['x-bigapple-publisher-id'] + '\n' + headers.authorization);
+    if ((teamCache.get(key) || 0) > Date.now()) return headers['x-bigapple-publisher-id'];
+    if (!(await isTeamMember(headers))) throw failure(403, '你的 BigApple 身份不在团队部署白名单里，请联系查理加入');
+    if (teamCache.size >= 200) teamCache.clear();
+    teamCache.set(key, Date.now() + teamCacheMs);
+    return headers['x-bigapple-publisher-id'];
+  }
   const salt = crypto.randomBytes(16);
   const passwordHash = crypto.scryptSync(adminPassword, salt, 32);
   const sessions = new Map(); const attempts = new Map();
   const sessionMs = 8 * 60 * 60 * 1000;
   const cookieName = secureCookies ? '__Host-ba_admin' : 'ba_admin';
   const cookie = (token, age) => `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? '; Secure' : ''}`;
-  const metadata = events.map((e) => ({ id: e.uid, title: e.partner, date: e.sourceDate }));
+  const metadata = () => store.events().map((e) => ({ id: e.uid, title: e.partner, date: e.sourceDate }));
   const send = (res, status, data) => respond(res.req, res, status, 'application/json; charset=utf-8', JSON.stringify(data));
   const getSession = (req) => {
     const token = req.headers.cookie?.split(';').map((p) => p.trim()).find((p) => p.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
@@ -50,7 +82,8 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
   function validate(value) {
     if (!value || typeof value.name !== 'string' || !value.name.trim() || value.name.trim().length > 60) throw failure(400, '请填写 1–60 字的网站名称');
     if (typeof value.logoUrl !== 'string' || (value.logoUrl && !store.hasLogo(value.logoUrl))) throw failure(400, '请重新上传 Logo');
-    if (!Array.isArray(value.activityIds) || !value.activityIds.length || value.activityIds.length > events.length || value.activityIds.some((id) => !knownIds.has(id))) throw failure(400, '请至少选择一场有效活动；活动列表如有更新请刷新');
+    const knownIds = new Set(store.events().map((e) => e.uid));
+    if (!Array.isArray(value.activityIds) || !value.activityIds.length || value.activityIds.length > knownIds.size || value.activityIds.some((id) => !knownIds.has(id))) throw failure(400, '请至少选择一场有效活动；活动列表如有更新请刷新');
     return { name: value.name.trim(), logoUrl: value.logoUrl, activityIds: [...new Set(value.activityIds)].sort() };
   }
   function requireMutation(req) {
@@ -77,6 +110,27 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       const method = req.method;
       if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: store.events().length > 0 });
       if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: store.events() });
+      const activityMatch = pathname.match(/^\/api\/activities\/([^/]+)$/);
+      if (activityMatch && method === 'PUT') {
+        const uid = decodeURIComponent(activityMatch[1]);
+        const actor = await requireTeamMember(req);
+        let body;
+        try { body = JSON.parse((await readBody(req, 4 * 1024 * 1024)).toString()); } catch (error) { if (error.status) throw error; throw failure(400, '请求内容无效'); }
+        const event = validateActivity(uid, body?.event);
+        const clash = store.events().find((e) => e.id === event.id && e.uid !== uid);
+        if (clash) throw failure(409, `活动 id ${event.id} 已被「${clash.partner}」使用，请换一个 id`);
+        const { created } = store.upsertActivity(event, actor);
+        console.info('[api/activities] saved', { uid, actor, created });
+        return send(res, created ? 201 : 200, { uid, created, activities: store.events().length });
+      }
+      if (activityMatch && method === 'DELETE') {
+        requireMutation(req);
+        if (!getSession(req)) throw failure(401, '登录已过期，请重新登录');
+        const uid = decodeURIComponent(activityMatch[1]);
+        if (!store.deactivateActivity(uid, 'admin')) throw failure(404, '活动不存在');
+        console.info('[api/activities] removed', { uid });
+        return send(res, 200, { uid, activities: store.events().length });
+      }
       const brandPage = pathname.match(/^\/api\/sites\/(\d+)\/page$/);
       if (brandPage && ['GET', 'HEAD'].includes(method)) {
         const record = store.get(brandPage[1]);
@@ -122,7 +176,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
           sessions.delete(session.key); res.setHeader('Set-Cookie', cookie('', 0));
           return send(res, 200, { ok: true });
         }
-        if (pathname === '/api/admin/resellers' && method === 'GET') return send(res, 200, { resellers: store.list(), activities: metadata });
+        if (pathname === '/api/admin/resellers' && method === 'GET') return send(res, 200, { resellers: store.list(), activities: metadata() });
         if (pathname === '/api/admin/logos' && method === 'POST') return send(res, 201, await uploadLogo(req));
         if (pathname === '/api/admin/resellers' && method === 'POST') {
           const body = await jsonBody(req); const value = validate(body);

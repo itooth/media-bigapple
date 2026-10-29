@@ -31,46 +31,20 @@ Node.js 服务 ─────── SQLite /data/resellers.sqlite
 
 完整运行、部署与数据维护说明见 [docs/reseller-admin.md](docs/reseller-admin.md)。
 
-## 编辑活动
+## 活动数据在哪
 
-活动数据集中在 `src/data/events.js`。归档页文字、详情页文字和图片都是独立字段，可以直接编辑：
-
-```js
-{
-  id: 'unique-id',
-  partner: '网页上可编辑的合作方 Title',
-  description: '网页上可编辑的一句话描述。',
-  image: importedCover,
-  alt: '图片无障碍描述',
-  detail: {
-    title: '活动主标题',
-    date: '2026年8月8日',
-    city: '深圳',
-    summary: '详情页的一句话描述。',
-    highlights: [],
-    gallery: [],
-    productions: [],
-    media: [],
-  },
-}
+```text
+GitHub（本仓库）          图床 media.bigapple.app        服务器 /data（SQLite）
+页面、样式、接口代码       照片、视频、主图（按哈希）      每场活动一条记录 ← 唯一真源
+改 UI 才部署              团队上传，只存链接              团队直接写入，不用部署
 ```
 
-月份由外层 `label` 控制。
-
-**活动图片不打包进前端**，页面上的活动图全部通过 `src/data/mediaIndex.generated.js` 里的
-`url` 指向云端（`media.bigapple.app`）。每张图靠一个哈希和云端那张 1:1 对应。
-`bootstrap/logos/` 只保存三个品牌的小型首次导入 Logo，由服务端初始化上传，不内嵌到前端。
-
-新增或更新活动图片时：
-
-1. 把图片放进项目之外的素材目录（`素材库` 原图真源 / 归档的 `网站压缩素材`），不要放进这个前端项目。
-2. 重新生成索引：`node scripts/build-media-index.mjs`（只读图片，不修改、不删除）。
-3. 在 `src/data/events.js` 里挂活动 id；只有存在更多真实照片时才扩充 `gallery`，没有真实制作物或媒体报道时保持 `productions`、`media` 为空数组，页面会自动隐藏对应模块。
-4. 重新构建：`npm run build`。
-
-对应不上云端的图会在索引里记 `url` 为空，页面不渲染，不会拿别的图顶上。
-
-已经确认由 BigApple 制作、但所属活动尚未上线的素材，登记在 `src/data/productionCatalog.js`，不要挂到无关活动中。
+- 活动数据以服务器数据库为准。部署只换代码，不覆盖活动；`src/data` 打包出的目录只在空数据库（新环境）时做一次初始导入。
+- 新增或更新一场活动：`PUT /api/activities/<uid>`，body `{ "event": {...} }`。只写这一场，旧版本记入 `activity_revisions`。
+  请求带 BigApple 部署身份头（`x-bigapple-publisher-id`、`Authorization: Bearer <部署令牌>`、`x-bigapple-skill-id/version`），服务器拿它向 BigApple 查 `media` 应用，查得到 = 在团队部署白名单里，才放行。
+  团队成员用「活动素材整理专家」Skill 完成，不手写请求。
+- 撤下活动：管理员登录 `/admin` 后 `DELETE /api/activities/<uid>`（保留旧版本，可再写回）。
+- 活动 JSON 的字段由 `src/data/events.js` 生成（Skill 在本地跑构建取出这一场）。改了生成规则，已在服务器上的旧活动不会自动更新，要重新写入受影响的活动。
 
 ## 开发与构建
 

@@ -24,6 +24,9 @@ export function openStore(dataDir) {
       active INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS activity_revisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL, payload TEXT, actor TEXT NOT NULL, created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS bootstrap_receipts (key TEXT PRIMARY KEY, reseller_id INTEGER NOT NULL REFERENCES resellers(id));
     INSERT INTO sqlite_sequence(name,seq) SELECT 'resellers',6023
       WHERE NOT EXISTS(SELECT 1 FROM sqlite_sequence WHERE name='resellers');
@@ -43,27 +46,47 @@ export function openStore(dataDir) {
       db.prepare('INSERT INTO reseller_domains(reseller_id,hostname) VALUES (?,?) ON CONFLICT(reseller_id) DO UPDATE SET hostname=excluded.hostname').run(id, hostname);
       return this.get(id);
     },
-    // Release catalog is authoritative for activity content; reseller selections
-    // are separate and are never reset by a new release.
+    // The server database is the activity source of truth. A release's bundled catalog
+    // only seeds an empty database; afterwards activities change through upsertActivity.
     syncCatalog(events) {
       if (!Array.isArray(events) || !events.length || events.some((e) => typeof e.uid !== 'string' || !e.uid) || new Set(events.map((e) => e.uid)).size !== events.length) throw new Error('活动目录为空或包含重复编号');
-      const hash = crypto.createHash('sha256').update(JSON.stringify(events)).digest('hex');
       db.exec('BEGIN IMMEDIATE');
       try {
-        if (db.prepare("SELECT value FROM settings WHERE key='catalog_hash'").get()?.value !== hash) {
-          db.exec('UPDATE activities SET active=0');
-          const upsert = db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,?,1) ON CONFLICT(uid) DO UPDATE SET payload=excluded.payload,position=excluded.position,active=1');
-          events.forEach((event, index) => upsert.run(event.uid, JSON.stringify(event), index));
-          db.prepare("INSERT INTO settings(key,value) VALUES ('catalog_hash',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(hash);
+        if (!db.prepare('SELECT 1 FROM activities LIMIT 1').get()) {
+          const insert = db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,?,1)');
+          events.forEach((event, index) => insert.run(event.uid, JSON.stringify(event), index));
         }
         db.exec('COMMIT');
       } catch (error) { db.exec('ROLLBACK'); throw error; }
     },
-    events: () => db.prepare('SELECT payload FROM activities WHERE active=1 ORDER BY position').all().map((row) => JSON.parse(row.payload)),
+    // Adds or replaces one activity; the previous version is kept in activity_revisions.
+    upsertActivity(event, actor) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const previous = db.prepare('SELECT payload, active FROM activities WHERE uid=?').get(event.uid);
+        db.prepare('INSERT INTO activity_revisions(uid,payload,actor,created_at) VALUES (?,?,?,?)').run(event.uid, previous?.active ? previous.payload : null, actor, new Date().toISOString());
+        db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,0,1) ON CONFLICT(uid) DO UPDATE SET payload=excluded.payload,active=1').run(event.uid, JSON.stringify(event));
+        db.exec('COMMIT');
+        return { created: !previous?.active };
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+    },
+    deactivateActivity(uid, actor) {
+      const row = db.prepare('SELECT payload FROM activities WHERE uid=? AND active=1').get(uid);
+      if (!row) return false;
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare('INSERT INTO activity_revisions(uid,payload,actor,created_at) VALUES (?,?,?,?)').run(uid, row.payload, actor, new Date().toISOString());
+        db.prepare('UPDATE activities SET active=0 WHERE uid=?').run(uid);
+        db.exec('COMMIT');
+        return true;
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+    },
+    // Newest activity first, the same order the bundled catalog used (sourceDate descending).
+    events: () => db.prepare("SELECT payload FROM activities WHERE active=1 ORDER BY json_extract(payload,'$.sourceDate') DESC, position").all().map((row) => JSON.parse(row.payload)),
     siteEvents(id) {
       return db.prepare(`SELECT a.payload FROM activities a JOIN resellers r ON r.id=?
         WHERE a.active=1 AND EXISTS (SELECT 1 FROM json_each(r.activity_ids) s WHERE s.value=a.uid)
-        ORDER BY a.position`).all(id).map((row) => JSON.parse(row.payload));
+        ORDER BY json_extract(a.payload,'$.sourceDate') DESC, a.position`).all(id).map((row) => JSON.parse(row.payload));
     },
     hasBootstrap: (key) => !!db.prepare('SELECT 1 FROM bootstrap_receipts WHERE key=?').get(key),
     getClientKey: (id) => db.prepare('SELECT client_key FROM resellers WHERE id=?').get(id)?.client_key,

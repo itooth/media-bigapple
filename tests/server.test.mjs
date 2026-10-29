@@ -156,3 +156,34 @@ test('production Logo uploads use object storage without exposing its token', as
   assert.equal(response.status, 201); assert.deepEqual(await response.json(), { url: 'https://assets.example/logo.png' });
   assert.equal(uploaded, true); assert.equal(fs.existsSync(path.join(f.dataDir, 'logos')), false);
 });
+
+const teamHeaders = { 'x-bigapple-publisher-id': 'pub_team', Authorization: 'Bearer badt_team', 'Content-Type': 'application/json' };
+const newEvent = { id: '10-29-new', uid: '2026-10-29_新活动', partner: '新活动', sourceDate: '2026-10-29', tags: [], detail: { gallery: [] } };
+
+test('team members add and update one activity without touching others; it survives restart', async (t) => {
+  const seen = [];
+  const f = await fixture(t, { isTeamMember: async (headers) => { seen.push(headers); return headers['x-bigapple-publisher-id'] === 'pub_team'; } });
+  const put = (event, headers = teamHeaders) => f.request(`/api/activities/${encodeURIComponent(event.uid)}`, { method: 'PUT', headers, body: { event } });
+  assert.equal((await put(newEvent, { 'Content-Type': 'application/json' })).status, 401);
+  assert.equal((await put(newEvent, { ...teamHeaders, 'x-bigapple-publisher-id': 'pub_outsider' })).status, 403);
+  const created = await put(newEvent);
+  assert.equal(created.status, 201); assert.equal((await created.json()).activities, 3);
+  assert.equal(seen.at(-1).authorization, 'Bearer badt_team');
+  const updated = await put({ ...newEvent, partner: '新活动改名' });
+  assert.equal(updated.status, 200);
+  assert.equal((await f.request(`/api/activities/${encodeURIComponent(newEvent.uid)}`, { method: 'PUT', headers: teamHeaders, body: { event: { ...newEvent, uid: 'other-folder' } } })).status, 400);
+  // Same public id under a different folder is a different activity: reject instead of merging.
+  assert.equal((await put({ ...newEvent, uid: 'other-folder' })).status, 409);
+  assert.equal((await put({ ...events[0], uid: 'clash', id: '10-29-new' })).status, 409);
+  await f.restart();
+  const site = await (await f.request('/api/site')).json();
+  assert.deepEqual(site.events.map((e) => e.partner), ['新活动改名', '活动甲', '活动乙']);
+});
+
+test('only an admin session can remove an activity', async (t) => {
+  const f = await fixture(t, { isTeamMember: async () => true });
+  assert.equal((await f.request('/api/activities/activity-a', { method: 'DELETE' })).status, 401);
+  await f.login();
+  assert.equal((await f.request('/api/activities/activity-a', { method: 'DELETE' })).status, 200);
+  assert.deepEqual((await (await f.request('/api/site')).json()).events.map((e) => e.uid), ['activity-b']);
+});

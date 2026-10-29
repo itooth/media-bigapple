@@ -56,19 +56,20 @@ test('existing local reseller is adopted without overwriting its saved selection
   assert.equal(store.list().length, 1); assert.equal(store.get(6024).name, '其他品牌'); store.close();
 });
 
-test('catalog updates persist content and archive removed IDs without resetting reseller selections', async (t) => {
+test('a release catalog only seeds an empty database; later releases never overwrite server activities', async (t) => {
   const { options } = setup(t); await initializeDatabase(options);
-  const next = [{ ...events[1], partner: '活动乙更新' }, { uid: 'c', partner: '新增活动' }];
-  await initializeDatabase({ ...options, events: next });
   let store = openStore(options.dataDir);
-  assert.deepEqual(store.events(), next);
+  store.upsertActivity({ ...events[0], partner: '服务器上改过' }, 'pub_team');
+  store.close();
+  // A colleague deploys from an older checkout that lacks or differs from server data.
+  await initializeDatabase({ ...options, events: [{ ...events[1], partner: '旧代码里的活动乙' }] });
+  store = openStore(options.dataDir);
+  assert.equal(store.events().length, 2);
+  assert.equal(store.events().find((e) => e.uid === 'a').partner, '服务器上改过');
+  assert.equal(store.events().find((e) => e.uid === 'b').partner, events[1].partner);
   assert.deepEqual(store.get(6025).activityIds, ['a', 'b']);
-  assert.deepEqual(store.siteEvents(6025), [next[0]]);
   assert.throws(() => store.syncCatalog([events[0], events[0]]), /重复/);
-  assert.deepEqual(store.events(), next); store.close();
-  // Roll back the content release; same ID resolves to the original full activity.
-  await initializeDatabase(options);
-  store = openStore(options.dataDir); assert.deepEqual(store.siteEvents(6025), events); store.close();
+  store.close();
 });
 
 test('production asset failure can be retried without partial reseller rows or duplicate imports', async (t) => {
