@@ -47,7 +47,17 @@ const opusGalleryRoot = path.resolve(process.cwd(), '..', 'opus-gallery-static')
 
 // Media manifests are re-read whenever this config reloads, keeping deletions in sync.
 const workspaceRoot = path.resolve(process.cwd(), '..', '..');
-const mediaRoot = path.join(workspaceRoot, '素材库');
+// 素材库根目录可用 BIGAPPLE_LIBRARY_ROOT 覆盖，主要用于发布脚本指向临时目录做 dry-run。
+const mediaRoot = process.env.BIGAPPLE_LIBRARY_ROOT
+  ? path.resolve(process.env.BIGAPPLE_LIBRARY_ROOT)
+  : path.join(workspaceRoot, '素材库');
+// 明确要删除的活动 id（逗号分隔）；默认不删，本地没有的活动一律保留，防止实习生误删。
+const removeActivityIds = new Set(
+  String(process.env.BIGAPPLE_REMOVE_ACTIVITIES || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean),
+);
 // 前端不留任何图片：候选素材目录只可能在项目之外（归档位置），项目内已经清空。
 // 压缩镜像可能有多份：本机副本（本地图存档）优先，iCloud 原件兜底。
 // 本机副本读得快、不受 iCloud 占位文件拖累；本机没同步到的图自动回退 iCloud，不会缺图。
@@ -449,15 +459,25 @@ function listActivityVideos(activityDir) {
   return result;
 }
 
-function readActivityManifests() {
+// 本地没有、旧 snapshot 里有的活动（按 id）原样保留，防止实习生只整理了一场活动
+// 就把其他活动从构建产物里悄悄抹掉。明确要删的 id 走 BIGAPPLE_REMOVE_ACTIVITIES。
+function mergeKeepingMissing(localList, previousList, idOf) {
+  const localIds = new Set(localList.map(idOf));
+  const kept = previousList.filter((item) => {
+    const id = idOf(item);
+    return !localIds.has(id) && !removeActivityIds.has(id);
+  });
+  return [...localList, ...kept];
+}
 
-  const result = [];
+function readActivityManifests() {
   if (!fs.existsSync(mediaRoot)) return contentSnapshot.activityManifests;
   // 视频清单以「网站压缩素材」为准：它才是实际上传、实际展示的那一份。
   // 母库里可能还是原片名，而镜像里可能是无损切段后的分段名（例如 _上/_下）。
   const activities = readLibraryActivities(mediaRoot);
   const mirrorRoot = websiteMediaRoots[0] || null;
   const mirrorFolders = mirrorRoot ? mediaFoldersByActivityId(mirrorRoot, activities) : new Map();
+  const result = [];
   for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const manifestPath = path.join(mediaRoot, entry.name, 'manifest.json');
@@ -479,7 +499,7 @@ function readActivityManifests() {
       });
     } catch {}
   }
-  return result;
+  return mergeKeepingMissing(result, contentSnapshot.activityManifests || [], (item) => item.id);
 }
 
 function normalizeSocialUrl(value) {
@@ -513,9 +533,21 @@ function cleanSocialLabel(value, url) {
   return before || fallbackSocialLabel(url);
 }
 
+// id 和 folder 两个 key 都可能指向旧 snapshot 里的同一份数据；本地已覆盖的 key 不保留旧值，
+// 本地完全没碰到的 key（活动没出现在本次扫描里）原样保留，被删除活动除外。
+function mergeKeepingMissingKeys(localMap, previousMap) {
+  const result = { ...localMap };
+  for (const [key, value] of Object.entries(previousMap || {})) {
+    if (key in result) continue;
+    if (removeActivityIds.has(key)) continue;
+    result[key] = value;
+  }
+  return result;
+}
+
 function readSocialLinks() {
-  const result = {};
   if (!fs.existsSync(mediaRoot)) return contentSnapshot.socialLinks;
+  const result = {};
   for (const entry of fs.readdirSync(mediaRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const directory = path.join(mediaRoot, entry.name);
@@ -549,12 +581,14 @@ function readSocialLinks() {
     result[id] = links;
     result[entry.name] = links;
   }
-  return result;
+  return mergeKeepingMissingKeys(result, contentSnapshot.socialLinks || {});
 }
 
 function readAichongCases() {
   if (!fs.existsSync(mediaRoot)) return contentSnapshot.aichongCases;
-  return aichongFolder ? readCaseMedia(aichongFolder) : [];
+  if (aichongFolder) return readCaseMedia(aichongFolder);
+  // 本地没有爱宠黑客松目录（例如只整理了一场新活动）时，保留旧 snapshot，别让这块内容消失。
+  return removeActivityIds.has('01-1') ? [] : contentSnapshot.aichongCases;
 }
 
 function currentCaseMedia() {
@@ -569,7 +603,7 @@ function currentCaseMedia() {
       if (manifest.id) result[manifest.id] = result[entry.name];
     }
   }
-  return result;
+  return mergeKeepingMissingKeys(result, contentSnapshot.caseMedia || {});
 }
 
 function mediaLibraryIndex() {
