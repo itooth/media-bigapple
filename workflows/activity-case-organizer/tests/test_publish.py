@@ -19,8 +19,8 @@ def write_json(path, value):
 def make_manifest(**overrides):
     manifest = {
         'version': 6,
-        'id': 'test-activity',
-        'uid': 'test-activity',
+        'id': '11-01-test-activity',
+        'uid': '2026-11-01_测试活动',
         'title': '测试活动',
         'date': '2026-11-01',
         'sourceFolder': '2026-11-01_测试活动',
@@ -143,9 +143,9 @@ class SelectedFilterTests(unittest.TestCase):
             dest, copied = publish_module.build_web_staging(media_map, web_root, staging_root, folder)
 
             self.assertEqual(copied, 1)
-            self.assertTrue((dest / '01_活动照片' / 'a_hash.jpg').is_file())
-            self.assertFalse((dest / '01_活动照片' / 'b_hash.jpg').exists())
-            self.assertFalse((dest / '01_活动照片' / 'c_hash.jpg').exists())
+            self.assertTrue((dest / '01_活动照片' / 'a.jpg').is_file())  # 无短哈希
+            self.assertFalse((dest / '01_活动照片' / 'b.jpg').exists())
+            self.assertFalse((dest / '01_活动照片' / 'c.jpg').exists())
             # manifest.json 复制进 web 临时目录，供 upload-media.mjs 解析活动 id
             self.assertTrue((dest / 'manifest.json').is_file())
 
@@ -199,6 +199,110 @@ class PublishSubprocessMockTests(unittest.TestCase):
                 publish_module.publish(self.activity_root, self.repo, self.web_root, 'app', dry_run=True)
             mocked_run.assert_not_called()
         self.assertIn('共享硬盘', str(ctx.exception))
+
+
+class CaseAndIdChecksTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name).resolve() / '活动'
+        self.root.mkdir()
+
+    def add_case(self, folder, images, intro='一句作品介绍'):
+        case = self.root / '02_案例' / folder
+        (case / '截图').mkdir(parents=True)
+        (case / '说明.md').write_text(f'## 案例名称\n\nx\n\n## 案例简介\n\n{intro}\n\n## 案例网址\n\n待确认\n', encoding='utf-8')
+        for name in images:
+            (case / '截图' / name).write_bytes(b'x')
+        return [make_media_item(f'02_案例/{folder}/截图/{n}') for n in images]
+
+    def check(self, media):
+        publish_module.check_cases(self.root, {'media': media})
+
+    def test_case_without_image_is_blocked(self):
+        self.add_case('首页01_苏兰', [])
+        with self.assertRaises(publish_module.PublishError) as ctx:
+            self.check([])
+        self.assertIn('没有主图，网站不会显示', str(ctx.exception))
+
+    def test_multiple_images_need_exactly_one_main(self):
+        media = self.add_case('首页01_苏兰', ['09000_作品界面_a.png', '09000_作品界面_b.png'])
+        with self.assertRaises(publish_module.PublishError) as ctx:
+            self.check(media)
+        self.assertIn('主图', str(ctx.exception))
+
+    def test_single_image_or_one_main_passes(self):
+        media = self.add_case('首页01_苏兰', ['a.png'])
+        media += self.add_case('首页02_小明', ['10000_主图_a.png', '09000_作品界面_b.png'])
+        self.check(media)
+
+    def test_placeholder_intro_is_blocked(self):
+        media = self.add_case('首页01_苏兰', ['a.png'], intro='待补充')
+        with self.assertRaises(publish_module.PublishError) as ctx:
+            self.check(media)
+        self.assertIn('请向实习生要一句作品介绍', str(ctx.exception))
+
+    def test_activity_id_must_not_be_uuid(self):
+        with self.assertRaises(publish_module.PublishError):
+            publish_module.check_activity_id_format({'id': '3f2b8c9e-1111-4222-8333-444455556666'})
+        publish_module.check_activity_id_format({'id': '10-28-yiwu-ai-class'})
+
+    def test_activity_id_conflict_with_head_snapshot(self):
+        snapshot = [{'id': '10-28-yiwu-ai-class', 'folder': '2026-10-28_别的活动'}]
+        with self.assertRaises(publish_module.PublishError) as ctx:
+            publish_module.check_activity_id_conflict({'id': '10-28-yiwu-ai-class'}, snapshot, '2026-10-28_义乌')
+        self.assertIn('冲突', str(ctx.exception))
+        self.assertTrue(publish_module.check_activity_id_conflict({'id': '10-28-yiwu-ai-class'}, snapshot, '2026-10-28_别的活动'))
+        self.assertFalse(publish_module.check_activity_id_conflict({'id': '10-29-new'}, snapshot, 'x'))
+
+    def test_website_media_path_rules(self):
+        self.assertEqual(publish_module.website_media_path('02_案例/a/截图/x.PNG'), '02_案例/a/截图/x.jpg')
+        self.assertEqual(publish_module.website_media_path('01_活动照片/v.mov'), '01_活动照片/v.mp4')
+
+
+class VerifyBuildTests(unittest.TestCase):
+    def write_events(self, repo, events):
+        (repo / 'dist-server').mkdir(parents=True)
+        (repo / 'dist-server' / 'events.json').write_text(json.dumps(events), encoding='utf-8')
+
+    def event(self, **detail):
+        base = {'gallery': [{'id': 'g', 'image': 'u'}], 'videos': [], 'productions': [], 'productionGallery': [], 'highlights': []}
+        base.update(detail)
+        return {'id': 'a', 'uid': 'a', 'image': 'cover-url', 'detail': base}
+
+    def test_missing_cover_and_wrong_counts_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            event = self.event()
+            event['image'] = ''
+            self.write_events(repo, [event])
+            expected = {'gallery': 2, 'videos': 1, 'cases': ['苏兰']}
+            with self.assertRaises(publish_module.PublishError) as ctx:
+                publish_module.verify_build(repo, 'a', 1, False, expected)
+            message = str(ctx.exception)
+            for part in ('封面', 'gallery', 'videos', '苏兰'):
+                self.assertIn(part, message)
+
+    def test_dry_run_ignores_empty_urls_but_still_checks_cases(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            self.write_events(repo, [self.event(productionGallery=[{'id': 'c', 'title': '苏兰', 'image': ''}])])
+            publish_module.verify_build(repo, 'a', 1, True, {'gallery': 1, 'videos': 0, 'cases': ['苏兰']})
+            with self.assertRaises(publish_module.PublishError):
+                publish_module.verify_build(repo, 'a', 1, True, {'gallery': 1, 'videos': 0, 'cases': ['苏兰', '小明']})
+
+    def test_complete_event_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            self.write_events(repo, [self.event(productions=[{'id': 'c', 'title': '苏兰', 'image': 'u'}])])
+            publish_module.verify_build(repo, 'a', 1, False, {'gallery': 1, 'videos': 0, 'cases': ['苏兰']})
+
+
+class RunStreamingTests(unittest.TestCase):
+    def test_nonzero_exit_raises_chinese_error(self):
+        with self.assertRaises(publish_module.PublishError) as ctx:
+            publish_module.run_streaming(['false'], '.', None, 'upload-media.mjs')
+        self.assertIn('失败', str(ctx.exception))
 
 
 if __name__ == '__main__':

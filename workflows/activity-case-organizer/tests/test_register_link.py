@@ -36,7 +36,7 @@ class RegisterLinkTests(unittest.TestCase):
 
     def test_captured_copies_frame_and_writes_both_indexes(self):
         record = self.captured()
-        self.assertEqual(record['screenshotPath'], '02_案例/首页01_游戏/截图/页面_开局画面.png')
+        self.assertEqual(record['screenshotPath'], '02_案例/首页01_游戏/截图/10000_主图_页面_开局画面.png')
         self.assertTrue((self.root / record['screenshotPath']).is_file())
         link = self.read('媒体映射.json')['linkReview'][0]
         self.assertEqual((link['status'], link['captureKind'], link['sourcePath']),
@@ -46,6 +46,24 @@ class RegisterLinkTests(unittest.TestCase):
         self.assertTrue(entry['review']['reviewed'])
         self.assertEqual(entry['review']['evidence'], '实看:开局画面')
 
+    def test_first_screenshot_gets_main_prefix_once(self):
+        record = self.captured(name='页面_开局画面')
+        self.assertTrue(record['screenshotPath'].endswith('/10000_主图_页面_开局画面.png'))
+        # 同名重登记沿用第一次的前缀，不再产生新文件
+        again = self.captured(name='页面_开局画面')
+        self.assertEqual(again['screenshotPath'], record['screenshotPath'])
+        self.assertEqual(len(list((self.root / '02_案例/首页01_游戏/截图').iterdir())), 1)
+        # 已有主图后，新截图保持原名
+        other = self.captured(name='页面_第二屏')
+        self.assertTrue(other['screenshotPath'].endswith('/页面_第二屏.png'))
+
+    def test_existing_score_or_main_prefix_not_duplicated(self):
+        self.assertTrue(self.captured(name='10000_主图_x')['screenshotPath'].endswith('/10000_主图_x.png'))
+        shots = self.root / '02_案例/首页01_游戏/截图'
+        for f in shots.iterdir():
+            f.unlink()
+        self.assertTrue(self.captured(name='09000_页面_y')['screenshotPath'].endswith('/09000_主图_页面_y.png'))
+
     def test_rerun_updates_instead_of_duplicating(self):
         self.captured()
         self.captured(title='新标题')
@@ -54,7 +72,7 @@ class RegisterLinkTests(unittest.TestCase):
         self.assertEqual(self.read('媒体映射.json')['linkReview'][0]['title'], '新标题')
 
     def test_existing_media_entry_is_marked_reviewed(self):
-        relative = '02_案例/首页01_游戏/截图/页面_开局画面.png'
+        relative = '02_案例/首页01_游戏/截图/10000_主图_页面_开局画面.png'
         (self.root / '媒体映射.json').write_text(json.dumps(
             {'version': 2, 'media': [{'originalPath': relative, 'review': {'reviewed': False}}], 'linkReview': []}), encoding='utf-8')
         self.captured()

@@ -47,6 +47,31 @@ function parseArgs(argv) {
   return options;
 }
 
+// 服务端会校验部署 Skill 版本，所以版本号不能写死：环境变量优先，其次读「APP 部署专员」自带的 metadata.json
+function resolveSkillVersion() {
+  if (process.env.BIGAPPLE_SKILL_VERSION) return process.env.BIGAPPLE_SKILL_VERSION.trim();
+  const candidates = [];
+  if (process.env.BIGAPPLE_DEPLOY_SKILL_DIR) candidates.push(process.env.BIGAPPLE_DEPLOY_SKILL_DIR);
+  let dir = process.cwd();
+  for (;;) {
+    candidates.push(path.join(dir, '.claude', 'skills', 'bigapple-deploy'));
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  candidates.push(path.join(os.homedir(), '.claude', 'skills', 'bigapple-deploy'));
+  for (const candidate of candidates) {
+    const file = path.join(candidate, 'bigapple', 'metadata.json');
+    if (!fs.existsSync(file)) continue;
+    try {
+      const version = JSON.parse(fs.readFileSync(file, 'utf8')).version;
+      if (version) return String(version);
+    } catch { /* 读不出来就找下一个 */ }
+  }
+  console.error('错误：找不到「APP 部署专员」Skill 的版本号。请设置环境变量 BIGAPPLE_SKILL_VERSION，或设置 BIGAPPLE_DEPLOY_SKILL_DIR 指向 bigapple-deploy 目录（其中有 bigapple/metadata.json）。');
+  process.exit(1);
+}
+
 function readCredential() {
   const file = path.join(os.homedir(), '.bigapple', 'deployment-credential.json');
   if (!fs.existsSync(file)) throw new Error(`找不到部署凭据：${file}`);
@@ -107,13 +132,13 @@ function activityIdOf(mediaRoot, folder, folderIds) {
   return folder;
 }
 
-async function uploadObject({ credential, app, objectKey, body, contentType }) {
+async function uploadObject({ credential, skillVersion, app, objectKey, body, contentType }) {
   const url = `${API}/api/apps/${app}/public-objects/${objectKey.split('/').map(encodeURIComponent).join('/')}`;
   const headers = {
     'x-bigapple-publisher-id': credential.publisherId,
     Authorization: `Bearer ${credential.token}`,
     'x-bigapple-skill-id': 'sk_405931e4-67f2-494f-aaca-8081885f54e5',
-    'x-bigapple-skill-version': '2.4.0',
+    'x-bigapple-skill-version': skillVersion,
     'Content-Type': contentType,
   };
   for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -135,6 +160,7 @@ async function uploadObject({ credential, app, objectKey, body, contentType }) {
 
 const options = parseArgs(process.argv.slice(2));
 const credential = readCredential();
+const skillVersion = options.dryRun ? null : resolveSkillVersion();
 const map = readMap(options.map);
 const folderIds = await buildFolderIdMap(options.index);
 let uploaded = 0;
@@ -156,7 +182,7 @@ for (const folder of options.folders) {
     if (options.dryRun) { uploaded += 1; continue; }
     try {
       const objectKey = `media/${hash}/${hash}${extension}`;
-      const payload = await uploadObject({ credential, app: options.app, objectKey, body, contentType: CONTENT_TYPES[extension] });
+      const payload = await uploadObject({ credential, skillVersion, app: options.app, objectKey, body, contentType: CONTENT_TYPES[extension] });
       if (!payload.publicUrl) throw new Error(`没有返回 publicUrl：${JSON.stringify(payload).slice(0, 160)}`);
       map[mapKey] = { hash, url: payload.publicUrl, bytes: body.byteLength };
       uploaded += 1;
@@ -173,4 +199,7 @@ for (const folder of options.folders) {
 
 if (!options.dryRun) saveMap(options.map, map);
 console.log(`\n完成：${options.dryRun ? '待上传(dry-run)' : '新上传'} ${uploaded}，已存在跳过 ${reused}，失败 ${failures.length}`);
-if (failures.length) console.log('失败清单见上方；修改后重跑本脚本会自动续传。');
+if (failures.length) {
+  console.error(`错误：有 ${failures.length} 个文件上传失败，见上方 ✗ 清单。修复后重跑会自动续传。`);
+  process.exit(1);
+}

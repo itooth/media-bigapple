@@ -46,6 +46,8 @@ def timestamp():
 
 def normalize_name(text):
     value = str(text).strip()
+    value = re.sub(r'^首页\d+_', '', value)
+    value = re.sub(r'^\d{5}_', '', value)
     value = SCORE_PATTERN.sub(lambda match: match.group(2), value)
     value = re.sub(r'^(?:首页|封面|主图|精选)[_\s]*', '', value)
     value = re.sub(r'[（(][^）)]*[）)]', '', value)
@@ -188,7 +190,7 @@ def match_entries(entries, cases, aliases):
                 target, method, note = candidates[0], 'exact', '名称与案例完全一致'
             elif len(candidates) > 1:
                 note = '多个案例同名: ' + ', '.join(case['dir'] for case in candidates)
-        if target is None and len(key) >= 3:
+        if target is None and len(key) >= 3:  # 两字名字只做精确匹配
             contains = [case for case in cases if key in case['keys'] or any(key in item for item in case['keys'])]
             if len(contains) == 1:
                 target, method, note = contains[0], 'contains', '索引名与案例名互相包含，需页面复核'
@@ -259,8 +261,8 @@ def ensure_description(case_dir):
     path = case_dir / '说明.md'
     if path.exists():
         return False
-    match = SCORE_PATTERN.match(case_dir.name)
-    write_text(path, '## 案例名称\n\n' + (match.group(2) if match else case_dir.name) +
+    name = re.sub(r'^\d{5}_', '', re.sub(r'^首页\d+_', '', case_dir.name)).strip() or case_dir.name
+    write_text(path, '## 案例名称\n\n' + name +
                '\n\n## 案例简介\n\n待补充\n\n## 案例网址\n\n待确认\n')
     return True
 

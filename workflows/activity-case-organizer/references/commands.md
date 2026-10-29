@@ -17,7 +17,7 @@ python3 "$SKILL/scripts/catalog.py" /素材库/活动 \
   --out /工作区/catalog.preview.json --public-dir /工作区/preview-public
 ```
 
-manifest.json 在 apply 时生成空壳，事实字段（title/date/venue/organizer/summary）在 apply 之后、catalog 之前填写；mirror 不会清掉它们。标题/时间等填 manifest；作品说明填当前 `说明.md`；人工排除选片在媒体映射 `selected:false`，且记录理由。新增案例链接填 linkReview，保留原文文件。原件和元数据更新后再次 mirror 和 catalog；只重新编码改变内容的项。
+manifest.json 在 apply 时生成空壳，`id` 是随机 UUID，发布前必须改：`id` 设为 `MM-DD-英文或拼音短名`（如 `10-28-yiwu-ai-class`，不能和已有活动重复，先用 `git show HEAD:src/data/siteContent.snapshot.json` 查已有 id），`uid` 设为活动目录名。事实字段（title/date/venue/organizer/summary）在 apply 之后、catalog 之前填写；mirror 不会清掉它们。标题/时间等填 manifest；作品说明填当前 `说明.md`；人工排除选片在媒体映射 `selected:false`，且记录理由。新增案例链接填 linkReview，保留原文文件。原件和元数据更新后再次 mirror 和 catalog；只重新编码改变内容的项。
 
 在网站工程构建预览：
 
