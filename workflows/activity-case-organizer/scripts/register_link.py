@@ -19,6 +19,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -56,6 +57,20 @@ def write_json(path, data):
         json.dump(data, stream, ensure_ascii=False, indent=2)
         stream.write('\n')
     os.replace(temporary, path)
+
+
+def main_image_name(shots, name, suffix):
+    """案例截图里还没有「主图」时，给 --name 加 10000_主图_ 前缀（网站每个案例只展示主图）。
+    已带「主图」不动；已有五位分数前缀但没写「主图」的，在分数后插入 主图_。重复登记同名时沿用第一次加的前缀。"""
+    if '主图' in name:
+        return name
+    score = re.match(r'^(\d{5})_(.*)$', name)
+    prefixed = f'{score.group(1)}_主图_{score.group(2)}' if score else f'10000_主图_{name}'
+    has_main = shots.is_dir() and any(
+        p.is_file() and p.suffix.lower() in common.IMAGES and '主图' in p.name for p in shots.iterdir())
+    if not has_main or (shots / (prefixed + suffix)).exists():
+        return prefixed
+    return name
 
 
 def find_source(root, case_path, url):
@@ -99,6 +114,7 @@ def register(root, case, url, status='captured', candidate=None, name=None, kind
             raise ValueError('--candidate should be a staged frame outside the activity')
         if '/' in name or '\\' in name or name.startswith('.'):
             raise ValueError('--name is a file name without folders')
+        name = main_image_name(root / case_path / '截图', name, source_file.suffix.lower())
         destination = root / case_path / '截图' / (name + source_file.suffix.lower())
         relative = destination.relative_to(root).as_posix()
         digest = common.sha256(source_file)
@@ -148,7 +164,7 @@ def main(argv=None):
     parser.add_argument('--url', required=True)
     parser.add_argument('--status', default='captured', choices=STATUSES)
     parser.add_argument('--candidate', help='选定的候选帧(暂存目录里的 png)')
-    parser.add_argument('--name', help='截图文件名(不含扩展名),写实际画面内容')
+    parser.add_argument('--name', help='截图文件名(不含扩展名),写实际画面内容;案例里还没有主图时自动加 10000_主图_ 前缀')
     parser.add_argument('--kind', choices=KINDS)
     parser.add_argument('--title', default='')
     parser.add_argument('--evidence', help='实看到了什么(captured 必填)')

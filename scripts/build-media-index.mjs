@@ -54,10 +54,32 @@ if (!WEBSITE_ROOT) {
   console.error('请设置 ANLI_WEBSITE_MEDIA，或确认归档目录存在。这是只读输入，不会修改任何图片。');
   process.exit(1);
 }
-const LIBRARY_ROOT = path.resolve(ROOT, '..', '..', '素材库');
+// 素材库根目录可用 BIGAPPLE_LIBRARY_ROOT 覆盖，主要用于发布脚本指向临时目录。
+const LIBRARY_ROOT = process.env.BIGAPPLE_LIBRARY_ROOT
+  ? path.resolve(process.env.BIGAPPLE_LIBRARY_ROOT)
+  : path.resolve(ROOT, '..', '..', '素材库');
 const CLOUD_MAP_FILE = path.join(ROOT, 'src/data/publicMediaMap.generated.js');
 const OUT_INDEX_FILE = path.join(ROOT, 'src/data/mediaIndex.generated.js');
 const OUT_REPORT_FILE = path.join(ROOT, 'docs/media-index-report.md');
+// 明确要删除的活动 id（逗号分隔）；默认不删，本次扫描没出现的活动原样保留旧条目。
+const REMOVE_ACTIVITY_IDS = new Set(
+  String(process.env.BIGAPPLE_REMOVE_ACTIVITIES || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean),
+);
+
+// 重建前读现有索引，本次扫描里没出现的活动 id 原样保留其 mediaEvents / mediaIndex 条目。
+async function readExistingIndex(indexFile) {
+  if (!fs.existsSync(indexFile)) return { mediaEvents: [], mediaIndex: [] };
+  try {
+    const module = await import(pathToFileURL(indexFile).href + `?t=${Date.now()}`);
+    return { mediaEvents: module.mediaEvents || [], mediaIndex: module.mediaIndex || [] };
+  } catch {
+    return { mediaEvents: [], mediaIndex: [] };
+  }
+}
+const existingIndex = await readExistingIndex(OUT_INDEX_FILE);
 
 const BIG_CLOUD_BYTES = 10 * 1024 * 1024;
 const BIG_ORIGIN_BYTES = 20 * 1024 * 1024;
@@ -253,6 +275,18 @@ for (const activity of websiteActivities) {
     });
   }
 }
+
+// 本次扫描里没出现的活动 id（素材库/网站压缩素材本地不存在该活动）：原样保留旧索引里的条目，
+// 防止「本地只整理了一场新活动」时把其它活动的图从索引里悄悄删掉。
+const scannedActivityIds = new Set(activities.map((activity) => activity.id));
+const preservedEvents = existingIndex.mediaEvents.filter(
+  (event) => !scannedActivityIds.has(event.id) && !REMOVE_ACTIVITY_IDS.has(event.id),
+);
+const preservedMediaIndex = existingIndex.mediaIndex.filter(
+  (item) => !scannedActivityIds.has(item.activityId) && !REMOVE_ACTIVITY_IDS.has(item.activityId),
+);
+for (const event of preservedEvents) activities.push(event);
+mediaIndex.push(...preservedMediaIndex);
 
 // 同一活动内：评分高的在前，其次按文件名
 mediaIndex.sort((a, b) => (a.activityId === b.activityId

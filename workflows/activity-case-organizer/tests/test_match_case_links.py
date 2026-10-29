@@ -62,6 +62,22 @@ class LinkIndexTests(unittest.TestCase):
         self.assertEqual(matcher.normalize_name('诗歌背诵游戏（备用入口）'), '诗歌背诵游戏')
         self.assertEqual(matcher.normalize_name('Deal Review移动端'), 'dealreview')
 
+    def test_normalize_strips_home_and_score_prefix(self):
+        self.assertEqual(matcher.normalize_name('首页01_苏兰'), '苏兰')
+        self.assertEqual(matcher.normalize_name('08200_苏兰'), '苏兰')
+
+    def test_two_char_name_matches_home_prefixed_case_and_description_uses_clean_name(self):
+        self.add_case('首页01_苏兰', '苏兰')
+        (self.root / '02_案例/首页01_苏兰/说明.md').unlink()
+        self.write_index('- 苏兰：https://example.com/sulan\n')
+        results, unresolved = matcher.match_entries(self.entries(), matcher.collect_cases(self.root), {})
+        self.assertEqual(unresolved, [])
+        self.assertEqual((results[0]['caseDir'], results[0]['method']), ('首页01_苏兰', 'exact'))
+        matcher.ensure_description(self.root / '02_案例/首页01_苏兰')
+        text = (self.root / '02_案例/首页01_苏兰/说明.md').read_text(encoding='utf-8')
+        self.assertIn('## 案例名称\n\n苏兰\n', text)
+        self.assertNotIn('首页01', text)
+
     def test_exact_match_binds_to_single_case(self):
         self.write_index('- 诗歌背诵游戏：https://example.com/poem/index.html\n')
         results, unresolved = matcher.match_entries(self.entries(), matcher.collect_cases(self.root), {})

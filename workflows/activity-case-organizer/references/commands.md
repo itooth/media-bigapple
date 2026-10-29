@@ -17,7 +17,7 @@ python3 "$SKILL/scripts/catalog.py" /素材库/活动 \
   --out /工作区/catalog.preview.json --public-dir /工作区/preview-public
 ```
 
-manifest.json 在 apply 时生成空壳，事实字段（title/date/venue/organizer/summary）在 apply 之后、catalog 之前填写；mirror 不会清掉它们。标题/时间等填 manifest；作品说明填当前 `说明.md`；人工排除选片在媒体映射 `selected:false`，且记录理由。新增案例链接填 linkReview，保留原文文件。原件和元数据更新后再次 mirror 和 catalog；只重新编码改变内容的项。
+manifest.json 在 apply 时生成空壳，`id` 是随机 UUID，发布前必须改：`id` 设为 `MM-DD-英文或拼音短名`（如 `10-28-yiwu-ai-class`，不能和已有活动重复，先用 `git show HEAD:src/data/siteContent.snapshot.json` 查已有 id），`uid` 设为活动目录名。事实字段（title/date/venue/organizer/summary）在 apply 之后、catalog 之前填写；mirror 不会清掉它们。标题/时间等填 manifest；作品说明填当前 `说明.md`；人工排除选片在媒体映射 `selected:false`，且记录理由。新增案例链接填 linkReview，保留原文文件。原件和元数据更新后再次 mirror 和 catalog；只重新编码改变内容的项。
 
 在网站工程构建预览：
 
@@ -28,15 +28,6 @@ BIGAPPLE_DATA_DIR=/工作区/preview-db PORT=4192 npm start
 
 本地管理服务需要配置 `ADMIN_PASSWORD`；随机生成到本地进程环境（如 `ADMIN_PASSWORD=$(openssl rand -hex 16)`），不打印密码、不复用生产数据库。构建会在 dist/case-assets 生成预览素材，不要提交。构建会更新 dist-server/events.json，避免与另一个运行中的预览共用同一工程输出。手机宽 390 与桌面都检查。
 
-发布素材上传后，用回执表替代本地 public 目录：
-
-```sh
-python3 "$SKILL/scripts/catalog.py" /素材库/活动 \
-  --website-root /网站压缩素材 --catalog /网站工程/dist-server/events.json \
-  --out /工作区/catalog.release.json --uploads /工作区/媒体上传回执.json \
-  --backup /备份盘/活动-版本.tar.gz --evidence /工作区/交接确认.json
-```
-
-回执表按真实 SHA256 索引：`{"<sha256>":{"sha256":"<sha256>","bytes":123,"url":"https://真实存储地址"}}`。回执来自上传工具和验证，不凭空生成。上传失败不编译半成品。发布前审阅新旧 catalog 差异，确认仅目标 UID 变动，再用 `CASE_CATALOG=/工作区/catalog.release.json npm run build` 构建发布包。长期保存时把新活动按工程现有方式写入 src/data，避免两套数据源分叉。
+上线不走 catalog.py：按 [备份、发布与上线](release.md) 用 `publish.py` 和 APP 部署专员。
 
 验证脚本：`python3 "$SKILL/scripts/test_workflow.py"`。只用隔离测试目录，不拿真实活动做破坏性测试。

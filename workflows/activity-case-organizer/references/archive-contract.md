@@ -18,13 +18,22 @@ YYYY-MM-DD_活动名称/
 
 旧素材有独立源码目录或视频位于 `其他/` 时保留原件，逐项明确展示用途再迁入规范目录；不能让脚本猜测并抽走项目依赖。裸输入、压缩包解压目录放活动外；未经核验不删除。近似画面不按字节重复删除。同名不同文件使用独立中文名。
 
+## 命名（与网站解析器一致）
+
+网站按文件名解析排序和标记（仓库 `docs/media-contract.md`、`src/lib/mediaNaming.js`），命名不对会排到最后或丢封面：
+
+- 活动照片、视频：`五位分数_[首页_][封面_]内容分类_具体描述.扩展名`，如 `10000_封面_活动_全体合影.jpg`、`09500_首页_活动_学员讲解作品.jpg`、`09150_活动视频_现场合影.mp4`。分数 00000–10000，越高越靠前；`首页` 进第一屏；每场最多一张 `封面`。
+- 案例目录：`首页NN_案例名`（首页按 NN 排序）或 `五位分数_案例名`。
+- 案例截图：`五位分数_主图_描述.png`。网站每个案例只展示文件名含「主图」的那一张，其他截图只留档不展示；有多张图时必须恰好一张含「主图」，否则整个案例不显示且不报错；只有一张图时可省略「主图」。`publish.py` 会检查这条，`register_link.py` 在案例还没有主图时自动给 `--name` 加 `10000_主图_` 前缀。
+- 活动照片文件名不要用 `首页01_` 这种带数字的首页标记，网站会读成没有分数。
+
 ## 计划与 AI 沉淀
 
 `scan` 输出计划位于输入目录外。每个 entry 包含 `assetId, sourcePath, originalName, sha256, bytes, targetPath, selected, review`；AI 填写 `targetPath`、`review.reviewed/evidence/confidence`，可补 `scoreDimensions`、`sampledSeconds`、`role`。`role` 可为 poster/logo/resource，避免海报/logo 混入现场相册。描述与评分必须有实看依据。未确定项移至 `其他/`，说明原因；不让新手逐项编辑这些字段。
 
 `apply` 保留输入，以复制方式建立正式目录，并把计划存在 `其他/整理记录.json`。只处理当前素材，不扫描整个电脑。修改后的源文件哈希不匹配时停止，已有目标内容不同拒绝覆盖。再次整理保留已有 `assetId`；补入新文件不撤销人工选择。
 
-`mirror` 每次扫描当前正式文件名，保留当前 `selected`/`role` 和未知元数据；重命名后按唯一哈希复用身份和判断。相同哈希在多个案例出现时须显式核对归属，不能自动跨案例认同一作品。`首页NN_` 是人工顺序；旧五位评分、`首页_`、`封面_` 继续兼容。图片透明通道保留 PNG，普通图片 JPEG；展示视频 H.264/AAC，不截断。展示副本带短哈希避免同名扩展格式冲突。需要其他压缩质量时改版本号，原件不受影响。
+`mirror` 每次扫描当前正式文件名，保留当前 `selected`/`role` 和未知元数据；重命名后按唯一哈希复用身份和判断。相同哈希在多个案例出现时须显式核对归属，不能自动跨案例认同一作品。`首页NN_` 是人工顺序；旧五位评分、`首页_`、`封面_` 继续兼容。图片透明通道保留 PNG，普通图片 JPEG；展示视频 H.264/AAC，不截断。展示副本在归档镜像里带短哈希后缀避免冲突；发布时 `publish.py` 组装暂存目录会去掉后缀，路径为 `<活动目录名>/<originalPath 按网站规则换扩展名>`（图片 .jpg、视频 .mp4），网站按这个路径查图。需要其他压缩质量时改版本号，原件不受影响。
 
 原件变化会使 review 失效，未审素材标为 needs-review；失败不产生可发布 URL。失败或待审项可在明确排除后设 `selected:false`，保留原件和理由。旧镜像文件可以留作恢复，但网站仅读当前映射，不能扫旧镜像混入页面。
 
@@ -54,6 +63,6 @@ YYYY-MM-DD_活动名称/
 
 网页实际显示：title、date、venue（作城市/地点）、summary（简介；`presentation.intro` 优先）、tags、海报、带图片的 partners。organizer/coOrganizers 写入 `detail` 留档，当前 UI 不单独显示；要在页面露出主办方，填 `presentation.partners`（有 logo 才显示）或写进 summary。
 
-scan 输出 `duplicateGroups`，计划条目带 `duplicates`：字节相同的输入只留一份展示，其余 `selected:false` 并放 `其他/重复副本_*`，记录理由。只改名的文件，展示副本沿用原文件名（带同一短哈希），属预期，不重新压缩。`mirror` 有待审素材时照常写出两份 JSON，返回 `pendingOrFailed` 列表，这是正常中间态，补完 review 再跑。
+scan 输出 `duplicateGroups`，计划条目带 `duplicates`：字节相同的输入只留一份展示，其余 `selected:false` 并放 `其他/重复副本_*`，记录理由。只改名的文件，展示副本沿用原文件名（镜像里带同一短哈希），属预期，不重新压缩；发布时的去后缀改名见上文。`mirror` 有待审素材时照常写出两份 JSON，返回 `pendingOrFailed` 列表，这是正常中间态，补完 review 再跑。
 
 网页 API 仍使用 `gallery/highlights/productionGallery/productions/videos/productionVideos/media`；新增 `detail.presentation` 可选。编译器按 UID 合并单场，不清空整站。UI 不回写原件，也不决定事实或选片。
