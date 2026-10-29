@@ -307,3 +307,17 @@ class RunStreamingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PngStagingTests(unittest.TestCase):
+    def test_png_display_copy_becomes_real_jpeg(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp); web = tmp / 'web'; act = tmp / 'activity'; act.mkdir()
+            src = web / '2026-11-01_测试活动' / '01_活动照片' / 'logo_abc.png'; src.parent.mkdir(parents=True)
+            Image.new('RGBA', (8, 8), (0, 0, 0, 0)).save(src)
+            media_map = {'_activity_root': str(act), 'media': [make_media_item('01_活动照片/10000_封面_活动_标识.png', websitePath='2026-11-01_测试活动/01_活动照片/logo_abc.png')]}
+            dest, copied = publish_module.build_web_staging(media_map, web, tmp / 'stage', '2026-11-01_测试活动')
+            out = dest / '01_活动照片' / '10000_封面_活动_标识.jpg'
+            self.assertEqual(copied, 1)
+            with Image.open(out) as im: self.assertEqual((im.format, im.getpixel((0, 0))), ('JPEG', (255, 255, 255)))

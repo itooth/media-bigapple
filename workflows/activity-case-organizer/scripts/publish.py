@@ -253,7 +253,16 @@ def build_web_staging(media_map, web_root, staging_root, activity_folder_name):
         if target.exists():
             raise PublishError(f"暂存目录里目标文件重名：{target.relative_to(dest)}")
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, target)
+        if src.suffix.lower() == ".png" and target.suffix.lower() == ".jpg":
+            # The site serves every image as .jpg; write a real JPEG (transparency on white) so type and bytes agree.
+            from PIL import Image
+            with Image.open(src) as im:
+                im = im.convert("RGBA")
+                flat = Image.new("RGB", im.size, "white")
+                flat.paste(im, mask=im.getchannel("A"))
+                flat.save(target, "JPEG", quality=90, optimize=True)
+        else:
+            shutil.copy2(src, target)
         copied += 1
     return dest, copied
 
