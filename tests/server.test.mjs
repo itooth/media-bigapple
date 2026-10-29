@@ -199,3 +199,19 @@ test('only an admin session can remove an activity', async (t) => {
   assert.equal((await f.request('/api/activities/activity-a', { method: 'DELETE' })).status, 200);
   assert.deepEqual((await (await f.request('/api/site')).json()).events.map((e) => e.uid), ['activity-b']);
 });
+
+test('archived work pages are served sandboxed from the works folder only', async (t) => {
+  const worksDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bigapple-works-'));
+  t.after(() => fs.rmSync(worksDir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(worksDir, 'pdf-ocr'));
+  fs.writeFileSync(path.join(worksDir, 'pdf-ocr', 'index.html'), '<title>纸面醒来</title>');
+  const f = await fixture(t, { worksDir });
+  for (const url of ['/works/pdf-ocr/', '/works/pdf-ocr']) {
+    const page = await f.request(url);
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /纸面醒来/);
+    assert.match(page.headers.get('content-security-policy'), /^sandbox allow-scripts/);
+  }
+  assert.equal((await f.request('/works/missing/')).status, 404);
+  assert.equal((await f.request('/works/..%2F..%2Fetc/')).status, 200); // not a work slug: falls through to the app shell
+});

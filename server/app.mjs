@@ -53,7 +53,7 @@ function renderSource(uid, source) {
 // Append: same-path entries are replaced, new ones added; everything else in the source stays.
 const mergeByPath = (current = [], added = []) => [...current.filter((item) => !added.some((next) => next.path === item.path)), ...added];
 
-export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', isTeamMember = resolveTeamMember }) {
+export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', worksDir = path.join(distDir, '..', 'works'), isTeamMember = resolveTeamMember }) {
   if (!adminPassword || adminPassword.length < 4 || adminPassword.length > 512 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
   if (!events.length) throw new Error('活动目录为空');
   const store = openStore(dataDir);
@@ -238,6 +238,15 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
           res.writeHead(302, { Location: record.publicUrl + (oldLink[2] || '/') + new URL(req.url, 'http://localhost').search });
           return res.end();
         }
+      }
+      // Archived single-file work pages (works/<slug>/index.html). The sandbox gives them an opaque origin,
+      // so their scripts cannot call this site's admin APIs with the session cookie.
+      const work = pathname.match(/^\/works\/([a-z0-9-]+)\/?$/);
+      if (work) {
+        const file = path.join(worksDir, work[1], 'index.html');
+        if (!fs.existsSync(file)) throw failure(404, '作品不存在');
+        res.setHeader('Content-Security-Policy', 'sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads');
+        return respond(req, res, 200, 'text/html; charset=utf-8', fs.readFileSync(file));
       }
       if (/^\/logos\/[a-f0-9]{64}\.png$/.test(pathname)) {
         const file = path.join(dataDir, 'logos', path.basename(pathname));

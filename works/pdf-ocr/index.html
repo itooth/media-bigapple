@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="PDF 和扫描件本地文字提取工具">
+  <link rel="icon" href="data:,">
+  <title>纸面醒来｜PDF 文字提取工具</title>
+  <style>
+    :root{--ink:#151812;--paper:#f2efe4;--acid:#c9ff48;--line:#c8c4b8;--muted:#6c6f65;--white:#fffef7}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:"Avenir Next","Hiragino Sans GB",sans-serif}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;background-image:radial-gradient(#30362c .55px,transparent .55px);background-size:9px 9px}
+    header{height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 34px;border-bottom:1px solid var(--line)}
+    .brand{font-weight:800;letter-spacing:.12em}.status{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:13px}.dot{width:9px;height:9px;border-radius:50%;background:#54a85d;box-shadow:0 0 0 5px rgba(84,168,93,.12)}
+    main{display:grid;grid-template-columns:minmax(340px,.82fr) minmax(520px,1.18fr);min-height:calc(100vh - 76px)}
+    .control{padding:56px 44px;border-right:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.18em;color:#53623d}.title{margin:26px 0 14px;font-family:"Songti SC",serif;font-size:clamp(54px,6vw,92px);line-height:.95;letter-spacing:-.06em}.lead{max-width:520px;color:var(--muted);font-family:"Songti SC",serif;font-size:19px;line-height:1.75}
+    .drop{margin-top:42px;padding:28px;border:1.5px dashed #858b78;background:rgba(255,254,247,.55);cursor:pointer;transition:.2s}.drop:hover,.drop.drag{background:var(--acid);border-color:var(--ink)}.drop strong{display:block;margin-bottom:8px;font-size:20px}.drop small{color:var(--muted)}input[type=file]{display:none}
+    .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:20px 0}.mode{padding:13px 8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}.mode.active{background:var(--ink);color:var(--paper)}
+    .run{width:100%;padding:18px;border:0;background:var(--acid);color:var(--ink);font-size:16px;font-weight:800;cursor:pointer}.run:hover{filter:brightness(.95)}
+    .reader{padding:34px;display:flex;flex-direction:column;gap:18px;background:#dedcd2}.viewer{flex:1;min-height:620px;display:grid;grid-template-rows:auto 1fr;background:var(--white);border:1px solid #bbb7ac;box-shadow:0 22px 50px rgba(35,37,31,.13)}
+    .viewer-head{display:flex;align-items:center;justify-content:space-between;padding:17px 20px;border-bottom:1px solid var(--line);font-size:13px}.filemeta{color:var(--muted)}
+    .document{padding:48px clamp(26px,5vw,72px);overflow:auto}.doc-kicker{color:#70766a;font-size:12px;letter-spacing:.18em}.document h2{margin:20px 0 34px;font-family:"Songti SC",serif;font-size:38px}.document p{font-family:"Songti SC",serif;line-height:2;color:#373a34}.placeholder{height:100%;display:grid;place-content:center;text-align:center;color:#8c8d85}.placeholder b{display:block;color:var(--ink);font-family:Georgia,serif;font-size:76px;font-weight:400}.progress{height:4px;background:#c9c6bd}.progress i{display:block;height:100%;width:0;background:var(--acid);transition:width .8s ease}
+    .toast{position:fixed;right:24px;bottom:24px;padding:14px 18px;background:var(--ink);color:white;opacity:0;transform:translateY(12px);transition:.25s}.toast.show{opacity:1;transform:none}
+    @media(max-width:880px){header{padding:0 18px}.status span:last-child{display:none}main{grid-template-columns:1fr}.control{padding:42px 20px;border-right:0;border-bottom:1px solid var(--line)}.reader{padding:14px}.viewer{min-height:560px}.title{font-size:58px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand">纸面醒来 · OCR</div><div class="status"><i class="dot"></i><span>本地处理</span><span>文件不会上传到服务器</span></div></header>
+  <main>
+    <section class="control">
+      <div class="eyebrow">DOCUMENT READER / LOCAL</div>
+      <h1 class="title">把扫描件，<br>变成可用文字。</h1>
+      <p class="lead">选择一份 PDF，判断页面类型，然后提取正文。结果可以直接复制到报告、知识库或下一步工作流。</p>
+      <label class="drop" id="drop" for="file"><strong id="dropTitle">拖入 PDF，或点击选择文件</strong><small id="dropNote">支持普通 PDF 与扫描版 PDF · 单文件演示</small></label>
+      <input id="file" type="file" accept="application/pdf">
+      <div class="modes" role="group" aria-label="提取模式">
+        <button class="mode active" data-mode="自动识别">自动识别</button><button class="mode" data-mode="扫描件 OCR">扫描件 OCR</button><button class="mode" data-mode="提取原文">提取原文</button>
+      </div>
+      <button class="run" id="run">载入示例并开始提取 →</button>
+    </section>
+    <section class="reader">
+      <div class="viewer">
+        <div><div class="viewer-head"><strong id="viewerName">等待文件</strong><span class="filemeta" id="viewerMeta">0 页 · 尚未处理</span></div><div class="progress"><i id="progress"></i></div></div>
+        <div class="document" id="document"><div class="placeholder"><b>PDF</b><span>提取结果会出现在这里</span></div></div>
+      </div>
+    </section>
+  </main>
+  <div class="toast" id="toast">文字已复制</div>
+  <script>
+    const file=document.querySelector('#file'),drop=document.querySelector('#drop'),run=document.querySelector('#run'),doc=document.querySelector('#document'),progress=document.querySelector('#progress');let selected=null,mode='自动识别';
+    document.querySelectorAll('.mode').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.mode').forEach(x=>x.classList.remove('active'));btn.classList.add('active');mode=btn.dataset.mode});
+    file.onchange=()=>{selected=file.files[0];if(selected){drop.querySelector('strong').textContent=selected.name;drop.querySelector('small').textContent=`${(selected.size/1024/1024).toFixed(2)} MB · 准备使用「${mode}」`}};
+    ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>{selected=e.dataTransfer.files[0];if(selected){document.querySelector('#dropTitle').textContent=selected.name;document.querySelector('#dropNote').textContent='文件已就绪'}});
+    run.onclick=()=>{const name=selected?.name||'工程造价咨询报告_示例.pdf';document.querySelector('#viewerName').textContent=name;document.querySelector('#viewerMeta').textContent=`识别中 · ${mode}`;progress.style.width='74%';run.disabled=true;setTimeout(()=>{progress.style.width='100%';document.querySelector('#viewerMeta').textContent='12 页 · 已完成';doc.innerHTML=`<div class="doc-kicker">EXTRACTED TEXT · SAMPLE</div><h2>工程造价咨询报告</h2><p>一、项目概况</p><p>本项目为公共建筑改造工程。本次咨询工作围绕工程量清单、材料价格与施工组织条件展开，对送审资料进行分类、识别与复核。</p><p>二、资料处理结果</p><p>已完成正文提取、段落整理与页码关联。表格和扫描图像中的主要文字已进入待复核区域，可继续用于报告编写和项目知识库整理。</p><p>三、复核提示</p><p>涉及金额、合同编号与签章位置的内容，建议由项目人员对照原件再次确认。</p>`;run.textContent='复制全部文字';run.disabled=false;run.onclick=()=>{navigator.clipboard?.writeText(doc.innerText);const t=document.querySelector('#toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1500)}},900)};
+  </script>
+</body>
+</html>

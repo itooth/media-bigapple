@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="data:,">
+  <title>工程信源台｜公告自动采集</title>
+  <style>
+    :root{--ink:#1d2624;--paper:#eee9dd;--red:#b4362a;--sage:#6d806f;--line:#bdb5a7;--white:#fffdf6}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:"Avenir Next","Hiragino Sans GB",sans-serif}
+    header{height:70px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{font-weight:900;letter-spacing:.13em}.live{display:flex;gap:9px;align-items:center;font-size:12px;color:#5e665f}.live i{width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1.6s infinite}@keyframes pulse{50%{opacity:.35}}
+    .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:42px;padding:48px 30px 35px}.hero h1{margin:12px 0 0;font-family:"Songti SC",serif;font-size:clamp(48px,6.8vw,102px);line-height:.94;letter-spacing:-.06em}.eyebrow{color:var(--red);font-size:12px;font-weight:900;letter-spacing:.18em}.hero p{align-self:end;max-width:460px;color:#5f635d;line-height:1.8}
+    .workspace{display:grid;grid-template-columns:250px 1fr;margin:0 30px 50px;border:1px solid var(--line);background:var(--white);box-shadow:0 20px 45px rgba(40,35,28,.09)}.sources{padding:20px;border-right:1px solid var(--line);background:#e3ded2}.sources h2{margin:4px 0 16px;font-size:12px;letter-spacing:.12em}.source{width:100%;padding:14px 12px;margin-bottom:8px;border:1px solid transparent;background:transparent;text-align:left;cursor:pointer}.source small{display:block;margin-top:5px;color:#7a7a72}.source.active{border-color:var(--ink);background:var(--white)}
+    .content{min-width:0}.toolbar{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:20px;border-bottom:1px solid var(--line)}.toolbar input,.toolbar select{padding:13px;border:1px solid var(--line);background:white}.search-btn{padding:13px 22px;border:0;background:var(--red);color:white;font-weight:800;cursor:pointer}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid var(--line)}.chip{padding:8px 11px;border:1px solid var(--line);background:transparent;cursor:pointer}.chip.active{background:var(--ink);color:white}
+    .result-head{display:flex;justify-content:space-between;padding:22px 20px 10px}.result-head h2{margin:0;font-family:"Songti SC",serif;font-size:28px}.result-head span{color:#74766f;font-size:13px}.rows{padding:0 20px 22px}.row{display:grid;grid-template-columns:1fr 170px 105px;gap:18px;padding:19px 0;border-top:1px solid #d8d2c7}.row a{text-decoration:none;font-family:"Songti SC",serif;font-size:17px;line-height:1.45}.row a:hover{color:var(--red)}.row span{color:#6c6d67;font-size:13px}.type{display:inline-block;padding:4px 7px;background:#e9e4d9;color:#4b544d!important}.empty{padding:70px 20px;text-align:center;color:#777}
+    footer{display:flex;justify-content:space-between;padding:0 30px 40px;color:#6e6d65;font-size:12px}
+    @media(max-width:850px){.hero{grid-template-columns:1fr;padding:38px 18px 25px}.hero h1{font-size:56px}.workspace{grid-template-columns:1fr;margin:0 18px 35px}.sources{display:flex;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.sources h2{display:none}.source{min-width:190px;margin:0 7px 0 0}.toolbar{grid-template-columns:1fr}.row{grid-template-columns:1fr}.row span{font-size:12px}footer{padding:0 18px 28px;gap:20px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand">工程信源台 / SIGNAL DESK</div><div class="live"><i></i><span>采集流程已就绪</span></div></header>
+  <section class="hero"><div><div class="eyebrow">PUBLIC INFORMATION WORKFLOW</div><h1>盯住公告，<br>筛出真正相关的。</h1></div><p>选择目标信息源，输入项目关键词，工作流负责进入栏目、设置筛选条件并读取公告结果。</p></section>
+  <section class="workspace">
+    <aside class="sources"><h2>目标信息源</h2><button class="source active" data-source="交易中心">深圳公共资源交易中心<small>建设工程 / 交易公告</small></button><button class="source" data-source="住建局">住建主管部门<small>政策文件 / 项目公示</small></button><button class="source" data-source="造价站">工程造价信息系统<small>材料价格 / 指数信息</small></button></aside>
+    <div class="content">
+      <div class="toolbar"><input id="keyword" value="机场" placeholder="项目名称、区域或关键词"><select id="days"><option>近 30 天</option><option>近 7 天</option><option>全部时间</option></select><button class="search-btn" id="search">开始采集</button></div>
+      <div class="chips"><button class="chip active" data-type="all">全部公告</button><button class="chip" data-type="招标公告">招标公告</button><button class="chip" data-type="答疑、补遗">答疑、补遗</button><button class="chip" data-type="合同公示">合同公示</button></div>
+      <div class="result-head"><h2 id="resultTitle">“机场”相关结果</h2><span id="count">找到 5 条</span></div><div class="rows" id="rows"></div>
+    </div>
+  </section>
+  <footer><span>采集证据：栏目进入、条件筛选、关键词搜索</span><span>结果需由项目人员进一步判断和归档</span></footer>
+  <script>
+    const records=[
+      {title:'深圳机场 T2 航站楼旅客过夜用房项目设计咨询招标文件附件变更',dept:'宝安区住房和建设局',date:'2026-05-21',type:'答疑、补遗',source:'交易中心'},
+      {title:'深圳机场场区环境适应性改造项目施工总承包批量招标文件',dept:'宝安区住房和建设局',date:'2026-05-12',type:'答疑、补遗',source:'交易中心'},
+      {title:'深圳机场凌霄花园、企岗山花园 188 套老旧宿舍改造装修项目',dept:'宝安区住房和建设局',date:'2026-05-09',type:'招标公告',source:'交易中心'},
+      {title:'深圳宝安国际机场 T2 航站区及配套设施工程航站区工程施工总承包',dept:'深圳市住房和建设局',date:'2026-05-23',type:'合同公示',source:'交易中心'},
+      {title:'福田区香蜜湖路污水管网完善工程第三方监测服务招标文件',dept:'福田区住房和建设局',date:'2026-05-23',type:'答疑、补遗',source:'交易中心'},
+      {title:'建设工程消防审验常见问题工作指引',dept:'深圳市住房和建设局',date:'2026-05-18',type:'政策文件',source:'住建局'},
+      {title:'2026 年第二季度主要建筑材料综合价格信息',dept:'深圳市建设工程造价站',date:'2026-05-16',type:'价格信息',source:'造价站'}];
+    let source='交易中心',type='all';const rows=document.querySelector('#rows');
+    function draw(){const q=document.querySelector('#keyword').value.trim();const list=records.filter(r=>r.source===source&&(type==='all'||r.type===type)&&(!q||r.title.includes(q)||r.dept.includes(q)));document.querySelector('#resultTitle').textContent=q?`“${q}”相关结果`:`${source}最新结果`;document.querySelector('#count').textContent=`找到 ${list.length} 条`;rows.innerHTML=list.length?list.map(r=>`<div class="row"><a href="#" onclick="return false">${r.title}</a><span>${r.dept}</span><span><b class="type">${r.type}</b><br>${r.date}</span></div>`).join(''):'<div class="empty">当前条件下没有结果，请调整关键词或公告类型。</div>'}
+    document.querySelectorAll('.source').forEach(b=>b.onclick=()=>{document.querySelectorAll('.source').forEach(x=>x.classList.remove('active'));b.classList.add('active');source=b.dataset.source;document.querySelector('#keyword').value='';draw()});document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');type=b.dataset.type;draw()});document.querySelector('#search').onclick=draw;document.querySelector('#keyword').onkeydown=e=>{if(e.key==='Enter')draw()};draw();
+  </script>
+</body>
+</html>

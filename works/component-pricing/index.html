@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="data:,">
+  <title>风口算价台｜部件价格计算</title>
+  <style>
+    :root{--forest:#173d32;--mint:#c8e5d2;--cream:#f3f0e4;--sun:#ffc54d;--ink:#17221c;--line:#a9b7a9;--white:#fffef8}
+    *{box-sizing:border-box}body{margin:0;background:var(--cream);color:var(--ink);font-family:"Avenir Next","Hiragino Sans GB",sans-serif}
+    header{height:72px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;background:var(--forest);color:white}.brand{font-weight:900;letter-spacing:.12em}.badge{padding:7px 11px;border:1px solid rgba(255,255,255,.3);font-size:12px}
+    main{display:grid;grid-template-columns:minmax(360px,.78fr) minmax(540px,1.22fr);min-height:calc(100vh - 72px)}
+    .form-side{padding:52px 42px;background:var(--mint);border-right:1px solid var(--line)}.eyebrow{font-size:12px;font-weight:900;letter-spacing:.16em;color:#426450}.form-side h1{margin:22px 0 14px;font-family:"Songti SC",serif;font-size:clamp(50px,6vw,88px);line-height:.95;letter-spacing:-.07em}.intro{color:#4f6559;line-height:1.75}
+    .form{margin-top:35px;padding-top:28px;border-top:1px solid #8eaa98}.field{margin-bottom:18px}.field label{display:block;margin-bottom:8px;font-size:12px;font-weight:800;letter-spacing:.06em}.field input,.field select{width:100%;padding:14px 13px;border:1px solid #8aa08e;background:#eff8f0;color:var(--ink);font-size:15px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.calc{width:100%;padding:17px;border:0;background:var(--forest);color:white;font-size:16px;font-weight:800;cursor:pointer}.calc:hover{background:#225746}
+    .result-side{min-width:0;padding:34px;display:grid;grid-template-rows:auto 1fr;gap:22px}.topline{display:flex;justify-content:space-between;gap:20px;align-items:center}.topline h2{margin:0;font-family:"Songti SC",serif;font-size:34px}.topline span{color:#6e786f;font-size:13px}
+    .board{display:grid;grid-template-rows:auto auto 1fr;border:1px solid var(--line);background:var(--white);box-shadow:0 20px 50px rgba(23,61,50,.12)}.price{display:grid;grid-template-columns:1fr auto;align-items:end;padding:35px;border-bottom:1px solid #d7ddd5}.price small{display:block;margin-bottom:8px;color:#758177}.price strong{font-family:Georgia,serif;font-size:clamp(62px,8vw,112px);line-height:.85}.stamp{width:94px;height:94px;display:grid;place-content:center;border:2px solid var(--forest);border-radius:50%;color:var(--forest);font-weight:900;transform:rotate(-8deg);text-align:center}
+    .formula{padding:24px 35px;background:#f0eee3;border-bottom:1px solid #d7ddd5;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#526258;line-height:1.7;overflow-wrap:anywhere}.history{padding:24px 35px;overflow:auto}.history h3{font-size:13px;letter-spacing:.12em}.row{display:grid;grid-template-columns:1.4fr .7fr .7fr .7fr;gap:12px;padding:14px 0;border-top:1px solid #d7ddd5;font-size:14px}.row strong{color:#a86400}.hint{color:#6b776e;line-height:1.7;font-size:13px}
+    @media(max-width:900px){main{grid-template-columns:1fr}.form-side{padding:40px 20px;border-right:0}.result-side{padding:18px}.board{min-height:600px}.pair{grid-template-columns:1fr}.row{grid-template-columns:1.2fr repeat(3,.7fr);font-size:11px}.price{padding:24px;gap:10px}.price strong{font-size:52px}.formula,.history{padding:22px}.stamp{width:66px;height:66px;font-size:11px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand">风口算价台 / AIR PARTS</div><div class="badge">工程部件 · 即算即得</div></header>
+  <main>
+    <section class="form-side">
+      <div class="eyebrow">COMPONENT PRICING WORKFLOW</div><h1>尺寸填进去，<br>价格算出来。</h1><p class="intro">从工料名称中识别风口类型和规格，套用对应价格公式，再把结果回填到工料机汇总表。</p>
+      <div class="form">
+        <div class="field"><label for="type">部件类型</label><select id="type"><option value="single">铝合金单层百叶风口</option><option value="hinged">铝合金门铰式百叶回风口</option><option value="rain">铝合金防水百叶回风口</option></select></div>
+        <div class="pair"><div class="field"><label for="width">宽度 / mm</label><input id="width" type="number" min="1" value="1200"></div><div class="field"><label for="height">高度 / mm</label><input id="height" type="number" min="1" value="250"></div></div>
+        <div class="field"><label for="factor">价格调整系数</label><input id="factor" type="number" step="0.1" value="1.7"></div>
+        <button class="calc" id="calc">重新计算 →</button>
+      </div>
+    </section>
+    <section class="result-side">
+      <div class="topline"><h2>计算结果</h2><span>当前记录：22050105_17</span></div>
+      <div class="board">
+        <div class="price"><div><small id="resultName">铝合金单层百叶风口 · 1200×250</small><strong id="price">¥132.60</strong></div><div class="stamp">公式<br>已匹配</div></div>
+        <div class="formula" id="formula">面积 0.3000㎡<br>ROUND((0.3000 × 200 + 18) × 1.7, 2) = 132.60</div>
+        <div class="history"><h3>同批次计算结果</h3><div class="row"><span>门铰式回风口 1200×150</span><span>0.1800㎡</span><strong>¥144.16</strong><span>已匹配</span></div><div class="row"><span>单层百叶风口 200×200</span><span>0.0400㎡</span><strong>¥44.20</strong><span>已匹配</span></div><div class="row"><span>门铰式回风口 600×600</span><span>0.3600㎡</span><strong>¥254.32</strong><span>已匹配</span></div><div class="row"><span>防雨百叶 600×150</span><span>0.0900㎡</span><strong>¥75.99</strong><span>已匹配</span></div><p class="hint">本批次共处理 418 条工料记录，其中 132 行完成部件识别和公式计算。特殊部件仍需工程人员复核。</p></div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const types={single:{name:'铝合金单层百叶风口',rate:200,base:18},hinged:{name:'铝合金门铰式百叶回风口',rate:360,base:20},rain:{name:'铝合金防水百叶回风口',rate:330,base:15}};
+    function calculate(){const t=types[document.querySelector('#type').value],w=+document.querySelector('#width').value||0,h=+document.querySelector('#height').value||0,f=+document.querySelector('#factor').value||1,area=w/1000*h/1000,value=Math.round((area*t.rate+t.base)*f*100)/100;document.querySelector('#resultName').textContent=`${t.name} · ${w}×${h}`;document.querySelector('#price').textContent=`¥${value.toFixed(2)}`;document.querySelector('#formula').innerHTML=`面积 ${area.toFixed(4)}㎡<br>ROUND((${area.toFixed(4)} × ${t.rate} + ${t.base}) × ${f}, 2) = ${value.toFixed(2)}`}
+    document.querySelector('#calc').onclick=calculate;['type','width','height','factor'].forEach(id=>document.querySelector('#'+id).addEventListener('change',calculate));calculate();
+  </script>
+</body>
+</html>
