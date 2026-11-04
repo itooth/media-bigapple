@@ -1,3 +1,4 @@
+const withoutSlugs = rows => rows.map(({slug, ...event}) => event);
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -91,14 +92,14 @@ test('default all, exclude one entire activity, public scoping and persistence',
   response = await f.request('/api/admin/resellers/6024', { method: 'PUT', body: { ...created, activityIds: ['activity-b'] } });
   assert.equal(response.status, 200);
   const publicSite = await (await f.request('/api/sites/6024')).json();
-  assert.deepEqual(publicSite.events, [events[1]]); // Same legacy id must not leak excluded activity A.
+  assert.deepEqual(withoutSlugs(publicSite.events), [events[1]]); // Same legacy id must not leak excluded activity A.
   assert.equal(JSON.stringify(publicSite).includes('photo-a'), false);
   assert.equal(publicSite.brand.name, 'Polo Events');
   assert.equal((await (await f.request('/api/site')).json()).events.length, 2);
   assert.equal((await f.request('/api/sites/9999')).status, 404);
   assert.equal((await f.request('/6024/events/activity-b/gallery')).status, 200);
   await f.restart();
-  assert.deepEqual((await (await f.request('/api/sites/6024')).json()).events, [events[1]]);
+  assert.deepEqual(withoutSlugs((await (await f.request('/api/sites/6024')).json()).events), [events[1]]);
   assert.equal((await f.request('/api/admin/resellers')).status, 401);
 });
 

@@ -6,6 +6,8 @@ import activityManifests from 'virtual:activity-manifests';
 import socialLinks from 'virtual:social-links';
 import agentProductionCatalog from './agentProductionCatalog.js';
 import { renderEvent, sortEvents } from '../lib/renderEvent.js';
+import { assignSlugs } from '../lib/eventSlug.js';
+import slugRegistry from './eventSlugs.json';
 
 function dateParts(value) {
   const match = String(value || '').match(/^(\d{4})[-年](\d{1,2})(?:[-月](\d{1,2}))?/);
@@ -39,7 +41,7 @@ export const activitySources = records.map((record) => ({
   ...(record.id === '08-22-ai-agent-17' ? { agentCatalog: agentProductionCatalog } : {}),
 }));
 
-export const allEvents = sortEvents(activitySources.map(renderEvent));
+export const allEvents = sortEvents(assignSlugs(activitySources.map(renderEvent), slugRegistry, { requireAllRegistered: true }));
 export const eventMonths = Object.entries(allEvents.reduce((groups, event) => {
   const key = monthKey(event.sourceDate);
   (groups[key] ||= []).push(event);

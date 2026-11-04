@@ -8,6 +8,7 @@ import SearchPanel from './components/SearchPanel.jsx';
 import useRoute from './hooks/useRoute.js';
 import { LayoutGrid, Settings, SlidersHorizontal } from 'lucide-react';
 import { api } from './lib/api.js';
+import { eventPath, findEvent } from './lib/eventSlug.js';
 import { groupCases, groupEvents } from './lib/archive.js';
 import { buildCaseItems, caseSearchText, eventSearchText, matchesTokens, tokenizeQuery } from './lib/caseArchive.js';
 import AdminLogin from './components/AdminLogin.jsx';
@@ -55,7 +56,13 @@ function Archive({ route, navigate, site, onAdmin }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [contentOpen, setContentOpen] = useState(false);
   const [casePreview, setCasePreview] = useState(null);
-  const activeEvent = route.eventId ? allEvents.find((event) => event.uid === route.eventId) || allEvents.find((event) => event.id === route.eventId) : null;
+  const activeEvent = findEvent(allEvents, route.eventId);
+  // 旧链接（中文文件夹名、旧编号）打开后把地址栏换成 ASCII 短链，用户从地址栏复制出去也能直接点开。
+  useEffect(() => {
+    if (!activeEvent?.slug || route.eventId === activeEvent.slug) return;
+    const suffix = route.page === 'detail' ? '' : `/${route.page}`;
+    navigate(`${eventPath(activeEvent)}${suffix}`, { replace: true, instant: true });
+  }, [activeEvent, route.eventId, route.page, navigate]);
   const activeTag = route.tag || null;
 
   const caseTitlesByEvent = useMemo(() => {
@@ -139,7 +146,7 @@ function Archive({ route, navigate, site, onAdmin }) {
 
   const openEvent = (event) => {
     window.sessionStorage.setItem(`archive-scroll-${route.tenant || 'original'}`, String(window.scrollY));
-    navigate(`/events/${encodeURIComponent(event.uid)}`);
+    navigate(eventPath(event));
   };
 
   const openSearch = () => {
@@ -207,19 +214,19 @@ function Archive({ route, navigate, site, onAdmin }) {
         <EventDetail
           key={activeEvent.uid || activeEvent.id}
           event={activeEvent}
-          onGallery={() => navigate(`/events/${encodeURIComponent(activeEvent.uid)}/gallery`)}
-          onProductionGallery={() => navigate(`/events/${encodeURIComponent(activeEvent.uid)}/production-gallery`)}
+          onGallery={() => navigate(`${eventPath(activeEvent)}/gallery`)}
+          onProductionGallery={() => navigate(`${eventPath(activeEvent)}/production-gallery`)}
           onMediaNotice={(label) => setToast(`${label}内容将在素材接入后开放`)}
           onBack={goArchive}
         />
       ) : null}
 
       {route.page === 'gallery' ? (
-        <EventGallery event={activeEvent} onBack={() => navigate(`/events/${encodeURIComponent(activeEvent.uid)}`)} />
+        <EventGallery event={activeEvent} onBack={() => navigate(eventPath(activeEvent))} />
       ) : null}
 
       {route.page === 'production-gallery' ? (
-        <EventGallery event={activeEvent} type="production" onBack={() => navigate(`/events/${encodeURIComponent(activeEvent.uid)}`)} />
+        <EventGallery event={activeEvent} type="production" onBack={() => navigate(eventPath(activeEvent))} />
       ) : null}
 
       {route.page === 'archive' || route.page === 'cases' ? (
