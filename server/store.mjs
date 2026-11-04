@@ -2,6 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { assignSlugs } from '../src/lib/eventSlug.js';
+import slugRegistry from '../src/data/eventSlugs.json' with { type: 'json' };
 import { renderEvent, sortEvents } from '../src/lib/renderEvent.js';
 
 // Rows written before sources were stored hold an already-rendered event; serve those as is.
@@ -73,7 +75,7 @@ export function openStore(dataDir) {
           }
         }
         db.exec('COMMIT');
-      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      } catch (error) { rendered = null; db.exec('ROLLBACK'); throw error; }
       rendered = null;
     },
     source(uid) {
@@ -87,10 +89,11 @@ export function openStore(dataDir) {
         const previous = db.prepare('SELECT payload, active FROM activities WHERE uid=?').get(source.uid);
         db.prepare('INSERT INTO activity_revisions(uid,payload,actor,created_at) VALUES (?,?,?,?)').run(source.uid, previous?.active ? previous.payload : null, actor, new Date().toISOString());
         db.prepare('INSERT INTO activities(uid,payload,position,active) VALUES (?,?,0,1) ON CONFLICT(uid) DO UPDATE SET payload=excluded.payload,active=1').run(source.uid, JSON.stringify(source));
-        db.exec('COMMIT');
         rendered = null;
+        this.events(); // Validate and persist the allocation in the same transaction.
+        db.exec('COMMIT');
         return { created: !previous?.active };
-      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      } catch (error) { rendered = null; db.exec('ROLLBACK'); throw error; }
     },
     deactivateActivity(uid, actor) {
       const row = db.prepare('SELECT payload FROM activities WHERE uid=? AND active=1').get(uid);
@@ -102,11 +105,23 @@ export function openStore(dataDir) {
         db.exec('COMMIT');
         rendered = null;
         return true;
-      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      } catch (error) { rendered = null; db.exec('ROLLBACK'); throw error; }
     },
     // Newest activity first (sourceDate descending), rendered once per change.
     events() {
-      rendered ||= sortEvents(db.prepare('SELECT payload FROM activities WHERE active=1 ORDER BY position').all().map((row) => renderStored(JSON.parse(row.payload))));
+      if (!rendered) {
+        const rows = db.prepare('SELECT payload, active FROM activities ORDER BY position').all();
+        const saved = JSON.parse(db.prepare("SELECT value FROM settings WHERE key='event_slugs'").get()?.value || '{}');
+        // Links already issued by this server win; a bundled entry is added only when its
+        // address is still free, so a later release can never take over a live link.
+        const registry = { ...saved };
+        const taken = new Set(Object.values(saved));
+        for (const [uid, slug] of Object.entries(slugRegistry)) if (!(uid in registry) && !taken.has(slug)) { registry[uid] = slug; taken.add(slug); }
+        const events = assignSlugs(rows.map(row => renderStored(JSON.parse(row.payload))), registry);
+        for (const event of events) registry[event.uid] = event.slug;
+        db.prepare("INSERT INTO settings(key,value) VALUES ('event_slugs',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(JSON.stringify(registry));
+        rendered = sortEvents(events.filter((event, index) => rows[index].active));
+      }
       return rendered;
     },
     siteEvents(id) {
@@ -135,7 +150,7 @@ export function openStore(dataDir) {
           db.prepare('INSERT INTO bootstrap_receipts(key,reseller_id) VALUES (?,?)').run(entry.key, entry.id);
         }
         db.exec('COMMIT');
-      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      } catch (error) { rendered = null; db.exec('ROLLBACK'); throw error; }
     },
     hasLogo: (url) => !!db.prepare('SELECT 1 FROM logos WHERE url=?').get(url),
     addLogo: (url) => db.prepare('INSERT OR IGNORE INTO logos(url) VALUES (?)').run(url),

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { assignSlugs } from '../src/lib/eventSlug.js';
 import { readSeeds } from '../server/bootstrap.mjs';
 
 function vite(args, env = {}) {
@@ -21,6 +22,10 @@ if (catalogPath) {
   ({ allEvents, activitySources } = await import(pathToFileURL(path.resolve('.catalog-build/events.js'))));
 }
 if (!allEvents.length || new Set(allEvents.map((e) => e.uid)).size !== allEvents.length) throw new Error('Missing or duplicate activity identity');
+const registryPath = 'src/data/eventSlugs.json';
+const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+allEvents = assignSlugs(allEvents, registry, { requireAllRegistered: true });
+const updatedRegistry = Object.fromEntries(allEvents.map(e => [e.uid, e.slug]));
 fs.mkdirSync('dist-server', { recursive: true });
 fs.writeFileSync('dist-server/events.json', JSON.stringify(allEvents));
 // The server stores sources and renders on read; events.json stays as the build's own check output.
@@ -28,3 +33,10 @@ if (activitySources) fs.writeFileSync('dist-server/sources.json', JSON.stringify
 console.log(`Catalog: ${allEvents.length} activities, ${allEvents.reduce((n, e) => n + e.detail.productionGallery.length, 0)} works`);
 console.log(`Launch configuration: ${readSeeds(path.resolve('bootstrap'), allEvents).length} resellers validated`);
 if (!process.argv.includes('--catalog-only')) vite(['build']);
+
+// Persist only after all validation and the requested build have succeeded.
+const registryText = JSON.stringify(updatedRegistry, null, 2) + '\n';
+if (fs.readFileSync(registryPath, 'utf8') !== registryText) {
+  fs.writeFileSync(registryPath + '.tmp', registryText);
+  fs.renameSync(registryPath + '.tmp', registryPath);
+}

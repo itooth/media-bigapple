@@ -69,7 +69,7 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   detail.productionGallery = productionGallery;
   // id 用于查云端媒体；folder 才是唯一标识（素材库里存在同一 id 的副本文件夹，
   // 只拿 id 当 React key 会撞车，列表在切换筛选时可能渲染错乱）。
-  return { id: record.id, uid: record.folder || record.id, partner: record.title, description: detail.summary, image: selection.cover ? mediaUrl(record.id, selection.cover.path) : caseItems[0]?.image || '', alt: record.title, sourceDate: record.date, tags: Array.isArray(record.tags) ? record.tags : [], detail };
+  return { id: record.id, uid: record.folder || record.id, ...(record.slug !== undefined ? { slug: record.slug } : {}), partner: record.title, description: detail.summary, image: selection.cover ? mediaUrl(record.id, selection.cover.path) : caseItems[0]?.image || '', alt: record.title, sourceDate: record.date, tags: Array.isArray(record.tags) ? record.tags : [], detail };
 }
 
 export const sortEvents = (events) => events.sort((a, b) => String(b.sourceDate).localeCompare(String(a.sourceDate)));

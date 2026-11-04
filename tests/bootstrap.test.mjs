@@ -1,3 +1,4 @@
+const withoutSlugs = rows => rows.map(({slug, ...event}) => event);
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -33,7 +34,7 @@ test('fresh launch seeds three brands; repeated releases preserve all administra
   assert.equal((await initializeDatabase(options)).imported, 0);
   store = openStore(options.dataDir);
   assert.deepEqual(store.get(6024), edited);
-  assert.deepEqual(store.siteEvents(6024), [events[1]]);
+  assert.deepEqual(withoutSlugs(store.siteEvents(6024)), [events[1]]);
   const created = store.create({ name: 'New brand', logoUrl: '', activityIds: ['a'] }, 'another-client-key-0001', 'hash');
   assert.equal(created.record.id, '6027');
   store.close();
@@ -101,7 +102,7 @@ test('online SQLite backup restores configuration, catalog, receipts and local l
   const destination = path.join(root, 'backup');
   await backupData(options.dataDir, destination);
   const restored = openStore(destination);
-  assert.deepEqual(restored.list(), store.list()); assert.deepEqual(restored.events(), events);
+  assert.deepEqual(restored.list(), store.list()); assert.deepEqual(withoutSlugs(restored.events()), events);
   assert.equal(restored.hasBootstrap('launch-6024'), true);
   assert.deepEqual(fs.readFileSync(path.join(destination, restored.get(6024).logoUrl)), png);
   assert.equal(JSON.parse(fs.readFileSync(path.join(destination, 'manifest.json'))).integrity, 'ok');
@@ -118,5 +119,5 @@ test('previous configuration-only schema is upgraded without losing the existing
   await initializeDatabase(options);
   const store = openStore(options.dataDir);
   assert.equal(store.get(6024).name, '旧版本品牌'); assert.deepEqual(store.get(6024).activityIds, ['b']);
-  assert.equal(store.list().length, 3); assert.deepEqual(store.events(), events); store.close();
+  assert.equal(store.list().length, 3); assert.deepEqual(withoutSlugs(store.events()), events); store.close();
 });

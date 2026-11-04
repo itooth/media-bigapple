@@ -495,6 +495,7 @@ function readActivityManifests() {
         place: manifest.place || manifest.venue || '',
         summary: manifest.summary || `${manifest.title || entry.name}活动资料与成员作品归档。`,
         tags: Array.isArray(manifest.tags) ? manifest.tags : [],
+        ...(manifest.slug !== undefined ? { slug: manifest.slug } : {}),
         videos: listActivityVideos(mirrorPath && fs.existsSync(mirrorPath) ? mirrorPath : path.join(mediaRoot, entry.name)),
       });
     } catch {}
