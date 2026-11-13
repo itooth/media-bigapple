@@ -222,9 +222,26 @@ function readLooseCaseReferences(caseRoot) {
   return references;
 }
 
-function compressedCaseExists(activityFolder, relativePath) {
+function indexedMediaPath(activityFolder, relativePath) {
   const id = activityIdOfFolder(activityFolder);
-  return indexPaths.has(id + '/' + websiteMediaPath(relativePath));
+  const wanted = String(relativePath || '').replaceAll('\\', '/');
+  const normalized = websiteMediaPath(wanted);
+  const exact = [normalized, wanted].find((candidate) => indexPaths.has(id + '/' + candidate));
+  if (exact) return exact;
+  const wantedName = path.basename(wanted).replace(/\.[^.]+$/u, '');
+  const candidates = [...indexPaths]
+    .filter((key) => key.startsWith(`${id}/02_案例/`))
+    .map((key) => key.slice(id.length + 1))
+    .filter((candidate) => {
+      const candidateName = path.basename(candidate).replace(/\.[^.]+$/u, '');
+      return candidateName === wantedName || candidateName.startsWith(`${wantedName}_`);
+    })
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  return candidates[0] || '';
+}
+
+function compressedCaseExists(activityFolder, relativePath) {
+  return Boolean(indexedMediaPath(activityFolder, relativePath));
 }
 
 function readCaseMedia(activityFolder) {
@@ -251,9 +268,10 @@ function readCaseMedia(activityFolder) {
       if (!mainImageCandidates.length && images.length === 1) mainImageCandidates.push(images[0]);
       const relativePath = mainImageCandidates
         .map((name) => `02_案例/${folder}/截图/${name}`)
-        .find((candidate) => compressedCaseExists(activityFolder, candidate)) || null;
-      return relativePath && compressedCaseExists(activityFolder, relativePath)
-        ? { folder, title, homeOrder: homeMatch ? Number(homeMatch[1]) : null, score: Number(folder.match(/(\d{5})_/)?.[1] || (homeMatch ? 10000 - Number(homeMatch[1]) : 0)), href, path: websiteMediaPath(relativePath), readme }
+        .map((candidate) => indexedMediaPath(activityFolder, candidate))
+        .find(Boolean) || null;
+      return (relativePath || href)
+        ? { folder, title, homeOrder: homeMatch ? Number(homeMatch[1]) : null, score: Number(folder.match(/(\d{5})_/)?.[1] || (homeMatch ? 10000 - Number(homeMatch[1]) : 0)), href, path: relativePath || '', readme }
         : null;
     }).filter(Boolean);
 
@@ -277,7 +295,7 @@ function readCaseMedia(activityFolder) {
         title,
         score: 8200,
         href: reference?.href,
-        path: websiteMediaPath(relativePath),
+        path: indexedMediaPath(activityFolder, relativePath) || websiteMediaPath(relativePath),
       });
     }
   }

@@ -33,7 +33,16 @@ function fullDateLabel(value) {
 
 export function renderEvent({ record, assets = [], cases = [], social = [], aichongCases = null, agentCatalog = null }) {
   const urls = new Map(assets.map((item) => [item.path, item.url]));
-  const mediaUrl = (_activityId, relativePath) => urls.get(String(relativePath || '').replace(/^\//, '')) || '';
+  const mediaUrl = (_activityId, relativePath) => {
+    const clean = String(relativePath || '').replace(/^\//, '');
+    if (urls.has(clean)) return urls.get(clean) || '';
+    // Some older manifests normalize PNG/JPEG names while the media index keeps
+    // the uploaded extension. Try the alternate image extension without inventing
+    // a URL; only an indexed path can return a result.
+    const alternate = /\.jpg$/iu.test(clean) ? clean.replace(/\.jpg$/iu, '.png')
+      : /\.png$/iu.test(clean) ? clean.replace(/\.png$/iu, '.jpg') : '';
+    return alternate ? (urls.get(alternate) || '') : '';
+  };
   const imageItem = (event, asset, index, kind) => ({ id: `${event.id}-${kind}-${index}`, image: mediaUrl(event.id, asset.path), alt: captionOf(asset.name), caption: captionOf(asset.name), position: index });
 
   // 活动图一律从媒体索引取（索引由云端清单生成，每条都带云端 url）。

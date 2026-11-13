@@ -1332,8 +1332,114 @@
   ],
   "caseMedia": {
     ".case-history": [],
-    "2026-11-11_广州应用科技学院AI黑客松培训": [],
-    "11-11-gyk-ai-hackathon": [],
+    "2026-11-11_广州应用科技学院AI黑客松培训": [
+      {
+        "folder": "首页01_你先别跑",
+        "title": "你先别跑",
+        "homeOrder": 1,
+        "score": 9999,
+        "path": "02_案例/首页01_你先别跑/截图/10000_主图_金库派对对局_ec21d50a67.png",
+        "readme": "## 案例名称\n你先别跑\n\n## 案例简介\n和朋友一起闯金库，在冒险与撤离之间作选择。\n\n## 案例网址\n\n\n## 提交组别\n奶龙不相信眼泪\n"
+      },
+      {
+        "folder": "首页02_有风的小院",
+        "title": "有风的小院",
+        "homeOrder": 2,
+        "score": 9998,
+        "href": "https://wind-courtyard-tailor.app.workbuddy.host/?sharecode=KMCZ7HAOE2",
+        "path": "02_案例/首页02_有风的小院/截图/10000_主图_等距小院全景_368be440f5.png",
+        "readme": "## 案例名称\n有风的小院\n\n## 案例简介\n逛小院、做裙子，体验轻松的手工制作。\n\n## 案例网址\nhttps://wind-courtyard-tailor.app.workbuddy.host/?sharecode=KMCZ7HAOE2\n\n## 提交组别\n5\n"
+      },
+      {
+        "folder": "首页03_雨夜惊魂",
+        "title": "雨夜惊魂",
+        "homeOrder": 3,
+        "score": 9997,
+        "href": "https://dead-signal-29322.app.workbuddy.host/?sharecode=IAUXQAXPLR",
+        "path": "",
+        "readme": "## 案例名称\n雨夜惊魂\n\n## 案例简介\n守住据点，抵挡僵尸进攻的射击游戏。\n\n## 案例网址\nhttps://dead-signal-29322.app.workbuddy.host/?sharecode=IAUXQAXPLR\n\n## 提交组别\n奶龙不相信眼泪\n"
+      },
+      {
+        "folder": "首页04_列车大厨",
+        "title": "列车大厨",
+        "homeOrder": 4,
+        "score": 9996,
+        "href": "https://train-chef.app.workbuddy.host/?sharecode=52UUU3ZYM3",
+        "path": "02_案例/首页04_列车大厨/截图/10000_主图_食材消除与订单_42a3469b7c.png",
+        "readme": "## 案例名称\n列车大厨\n\n## 案例简介\n通过消除收集食材，完成订单，经营列车餐厅。\n\n## 案例网址\nhttps://train-chef.app.workbuddy.host/?sharecode=52UUU3ZYM3\n\n## 提交组别\nRS\n"
+      },
+      {
+        "folder": "首页05_猫猫汉堡店",
+        "title": "猫猫汉堡店",
+        "homeOrder": 5,
+        "score": 9995,
+        "href": "https://maomao-burger.bigapple.work",
+        "path": "02_案例/首页05_猫猫汉堡店/截图/10000_主图_猫咪汉堡经营界面_04a68c71e0.jpg",
+        "readme": "## 案例名称\n猫猫汉堡店\n\n## 案例简介\n为猫咪制作汉堡，经营自己的小店。\n\n## 案例网址\nhttps://maomao-burger.bigapple.work\n\n## 提交组别\n青春支线社\n"
+      },
+      {
+        "folder": "首页06_拣爱",
+        "title": "拣爱",
+        "homeOrder": 6,
+        "score": 9994,
+        "path": "02_案例/首页06_拣爱/截图/10000_主图_剧情与选项_3df43d6d76.png",
+        "readme": "## 案例名称\n拣爱\n\n## 案例简介\n通过对话和选择推进故事的剧情小游戏。\n\n## 案例网址\n\n\n## 提交组别\n陈\n"
+      }
+    ],
+    "11-11-gyk-ai-hackathon": [
+      {
+        "folder": "首页01_你先别跑",
+        "title": "你先别跑",
+        "homeOrder": 1,
+        "score": 9999,
+        "path": "02_案例/首页01_你先别跑/截图/10000_主图_金库派对对局_ec21d50a67.png",
+        "readme": "## 案例名称\n你先别跑\n\n## 案例简介\n和朋友一起闯金库，在冒险与撤离之间作选择。\n\n## 案例网址\n\n\n## 提交组别\n奶龙不相信眼泪\n"
+      },
+      {
+        "folder": "首页02_有风的小院",
+        "title": "有风的小院",
+        "homeOrder": 2,
+        "score": 9998,
+        "href": "https://wind-courtyard-tailor.app.workbuddy.host/?sharecode=KMCZ7HAOE2",
+        "path": "02_案例/首页02_有风的小院/截图/10000_主图_等距小院全景_368be440f5.png",
+        "readme": "## 案例名称\n有风的小院\n\n## 案例简介\n逛小院、做裙子，体验轻松的手工制作。\n\n## 案例网址\nhttps://wind-courtyard-tailor.app.workbuddy.host/?sharecode=KMCZ7HAOE2\n\n## 提交组别\n5\n"
+      },
+      {
+        "folder": "首页03_雨夜惊魂",
+        "title": "雨夜惊魂",
+        "homeOrder": 3,
+        "score": 9997,
+        "href": "https://dead-signal-29322.app.workbuddy.host/?sharecode=IAUXQAXPLR",
+        "path": "",
+        "readme": "## 案例名称\n雨夜惊魂\n\n## 案例简介\n守住据点，抵挡僵尸进攻的射击游戏。\n\n## 案例网址\nhttps://dead-signal-29322.app.workbuddy.host/?sharecode=IAUXQAXPLR\n\n## 提交组别\n奶龙不相信眼泪\n"
+      },
+      {
+        "folder": "首页04_列车大厨",
+        "title": "列车大厨",
+        "homeOrder": 4,
+        "score": 9996,
+        "href": "https://train-chef.app.workbuddy.host/?sharecode=52UUU3ZYM3",
+        "path": "02_案例/首页04_列车大厨/截图/10000_主图_食材消除与订单_42a3469b7c.png",
+        "readme": "## 案例名称\n列车大厨\n\n## 案例简介\n通过消除收集食材，完成订单，经营列车餐厅。\n\n## 案例网址\nhttps://train-chef.app.workbuddy.host/?sharecode=52UUU3ZYM3\n\n## 提交组别\nRS\n"
+      },
+      {
+        "folder": "首页05_猫猫汉堡店",
+        "title": "猫猫汉堡店",
+        "homeOrder": 5,
+        "score": 9995,
+        "href": "https://maomao-burger.bigapple.work",
+        "path": "02_案例/首页05_猫猫汉堡店/截图/10000_主图_猫咪汉堡经营界面_04a68c71e0.jpg",
+        "readme": "## 案例名称\n猫猫汉堡店\n\n## 案例简介\n为猫咪制作汉堡，经营自己的小店。\n\n## 案例网址\nhttps://maomao-burger.bigapple.work\n\n## 提交组别\n青春支线社\n"
+      },
+      {
+        "folder": "首页06_拣爱",
+        "title": "拣爱",
+        "homeOrder": 6,
+        "score": 9994,
+        "path": "02_案例/首页06_拣爱/截图/10000_主图_剧情与选项_3df43d6d76.png",
+        "readme": "## 案例名称\n拣爱\n\n## 案例简介\n通过对话和选择推进故事的剧情小游戏。\n\n## 案例网址\n\n\n## 提交组别\n陈\n"
+      }
+    ],
     ".2026-09-12_周周黑客松亲子活动-link-captures": [],
     ".2026-09-22_WinFlow第十二期工作坊-link-captures": [],
     "2026-01-10爱宠黑客松": [
