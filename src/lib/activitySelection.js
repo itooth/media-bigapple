@@ -16,6 +16,7 @@ export function selectActivityPhotos(records = []) {
   const sorted = records
     .filter((item) => item.category === CATEGORY_ACTIVITY
       && item.path?.startsWith('01_活动照片/')
+      && !item.path.split('/').includes('视频封面')
       && isImageName(item.name)
       && item.url)
     .slice()

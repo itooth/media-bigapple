@@ -51,7 +51,12 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   // 云端没有这个视频时 src 会是空字符串：直接不渲染，避免页面上出现空白播放器。
   // 和图片同一条硬规则——只渲染云端确实有的媒体，见 docs/media-contract.md。
   const videos = (record.videos || [])
-    .map((asset, index) => ({ id: `${record.id}-video-${index}`, src: mediaUrl(record.id, websiteAssetPath(asset.path)), title: captionOf(asset.name) }))
+    .map((asset, index) => {
+      const posterPath = record.videoPosters?.[asset.path];
+      const poster = posterPath ? mediaUrl(record.id, websiteAssetPath(posterPath)) : '';
+      return { id: `${record.id}-video-${index}`, src: mediaUrl(record.id, websiteAssetPath(asset.path)),
+        title: record.videoTitles?.[asset.path] || captionOf(asset.name), ...(poster ? { poster } : {}) };
+    })
     .filter((video) => video.src);
   let productions = caseItems.slice(0, 7);
   const folderCases = cases;

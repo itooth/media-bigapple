@@ -497,6 +497,8 @@ function readActivityManifests() {
         tags: Array.isArray(manifest.tags) ? manifest.tags : [],
         ...(manifest.slug !== undefined ? { slug: manifest.slug } : {}),
         videos: listActivityVideos(mirrorPath && fs.existsSync(mirrorPath) ? mirrorPath : path.join(mediaRoot, entry.name)),
+        ...(manifest.videoPosters ? { videoPosters: manifest.videoPosters } : {}),
+        ...(manifest.videoTitles ? { videoTitles: manifest.videoTitles } : {}),
       });
     } catch {}
   }
