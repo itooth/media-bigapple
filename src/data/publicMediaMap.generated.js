@@ -30238,5 +30238,345 @@ export default {
     "hash": "6c1bc68e71b376ec859b98194e10fa941d2c6dc45696b4baa351d07289f9633b",
     "url": "https://media.bigapple.app/environments/production/publishers/pub_7ef650a7-c07d-4b10-880e-0202d28e8e9c/apps/bigapple-onboarding-course/media/6c1bc68e71b376ec859b98194e10fa941d2c6dc45696b4baa351d07289f9633b/6c1bc68e71b376ec859b98194e10fa941d2c6dc45696b4baa351d07289f9633b.mp4",
     "bytes": 8500246
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07840_活动视频_猫咪经营游戏交互短演示_f4e6def2b2.mp4": {
+    "hash": "24d0af8f3a43257cb0ffc2d8fddd669f3c8fcefaed758ce4c3002a84961fd2bf",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/24d0af8f3a43257cb0ffc2d8fddd669f3c8fcefaed758ce4c3002a84961fd2bf/24d0af8f3a43257cb0ffc2d8fddd669f3c8fcefaed758ce4c3002a84961fd2bf.mp4",
+    "bytes": 522177
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07860_活动视频_彩色游戏设计与生成过程_8a7dfc94c3.mp4": {
+    "hash": "3ff218184de3d2bfef037567b612a82e065798f5fbaa6d8604e225ed1d639ead",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/3ff218184de3d2bfef037567b612a82e065798f5fbaa6d8604e225ed1d639ead/3ff218184de3d2bfef037567b612a82e065798f5fbaa6d8604e225ed1d639ead.mp4",
+    "bytes": 16083432
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07880_活动视频_服装搭配与小院场景完整展示_1ff30c3f01.mp4": {
+    "hash": "8b21f9c790601d9bb8526ad5d7d5888db6093540b5802cf17e6619ca22620b69",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/8b21f9c790601d9bb8526ad5d7d5888db6093540b5802cf17e6619ca22620b69/8b21f9c790601d9bb8526ad5d7d5888db6093540b5802cf17e6619ca22620b69.mp4",
+    "bytes": 15687111
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07900_活动视频_雨夜射击游戏现场试玩_f524c9cc89.mp4": {
+    "hash": "1abbb73397e5e6bc1b7f8aa87f9264ddfe50beadd3596b583c2003af4b353661",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/1abbb73397e5e6bc1b7f8aa87f9264ddfe50beadd3596b583c2003af4b353661/1abbb73397e5e6bc1b7f8aa87f9264ddfe50beadd3596b583c2003af4b353661.mp4",
+    "bytes": 3378814
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07920_活动视频_小院场景与玩法展示_5d9bccea94.mp4": {
+    "hash": "06880ff5fea36374a9db061bf17b5444c65dc2e98f68525903db18bca45cbaa2",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/06880ff5fea36374a9db061bf17b5444c65dc2e98f68525903db18bca45cbaa2/06880ff5fea36374a9db061bf17b5444c65dc2e98f68525903db18bca45cbaa2.mp4",
+    "bytes": 1941917
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07940_活动视频_游戏角色设计展示_7292aa09f5.mp4": {
+    "hash": "af7cceafb3b50c9c261887c59dd4f60f4952f51a4abffdbe28a86d782d1ac4fe",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/af7cceafb3b50c9c261887c59dd4f60f4952f51a4abffdbe28a86d782d1ac4fe/af7cceafb3b50c9c261887c59dd4f60f4952f51a4abffdbe28a86d782d1ac4fe.mp4",
+    "bytes": 6373451
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07960_活动视频_服装搭配页面短演示_2401e457b8.mp4": {
+    "hash": "19f1fb4bfe15ed64e3c36fe031e7e1d42e366173d227a2ed5caf319c47d93ba6",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/19f1fb4bfe15ed64e3c36fe031e7e1d42e366173d227a2ed5caf319c47d93ba6/19f1fb4bfe15ed64e3c36fe031e7e1d42e366173d227a2ed5caf319c47d93ba6.mp4",
+    "bytes": 1186028
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/07980_活动视频_猫猫汉堡店作品讲解_7f3cef06fc.mp4": {
+    "hash": "6bb1ba192f05a9b0811dfbb977247f8fca61546eb4fe9e646089e3e337e026f0",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/6bb1ba192f05a9b0811dfbb977247f8fca61546eb4fe9e646089e3e337e026f0/6bb1ba192f05a9b0811dfbb977247f8fca61546eb4fe9e646089e3e337e026f0.mp4",
+    "bytes": 11095415
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09060_活动_图书馆外观竖图_d602651c81.jpg": {
+    "hash": "4fccbe7ad9a6783c6f228aaf5576fd53cbf50ecf6af1f80387b2002345245a5c",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/4fccbe7ad9a6783c6f228aaf5576fd53cbf50ecf6af1f80387b2002345245a5c/4fccbe7ad9a6783c6f228aaf5576fd53cbf50ecf6af1f80387b2002345245a5c.jpg",
+    "bytes": 371763
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09080_活动_学员展示工具操作过程_9718ca2435.jpg": {
+    "hash": "de2e780e2707dfa3f1397866328b2f5e1eee634350e081321a773419fa80ccff",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/de2e780e2707dfa3f1397866328b2f5e1eee634350e081321a773419fa80ccff/de2e780e2707dfa3f1397866328b2f5e1eee634350e081321a773419fa80ccff.jpg",
+    "bytes": 253354
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09100_活动_猫猫汉堡店设计与实现_995acd75cf.jpg": {
+    "hash": "9312da5587ebfe5f092cb97bb87f419db03c9a32100166865ae0d5c3b3db615f",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/9312da5587ebfe5f092cb97bb87f419db03c9a32100166865ae0d5c3b3db615f/9312da5587ebfe5f092cb97bb87f419db03c9a32100166865ae0d5c3b3db615f.jpg",
+    "bytes": 276110
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09120_活动_猫猫汉堡店首页投影_23e02da8de.jpg": {
+    "hash": "bd08d56f31f352a54e2775c16569d7130284ca2e54f2ce9f047195011cf45015",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/bd08d56f31f352a54e2775c16569d7130284ca2e54f2ce9f047195011cf45015/bd08d56f31f352a54e2775c16569d7130284ca2e54f2ce9f047195011cf45015.jpg",
+    "bytes": 207991
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09140_首页_活动_猫猫汉堡店演示首页_9b65a72d6f.jpg": {
+    "hash": "66aa29b9de3d4f31492920cd433063f55fd8033a1b98570f16fa82973a32f5e0",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/66aa29b9de3d4f31492920cd433063f55fd8033a1b98570f16fa82973a32f5e0/66aa29b9de3d4f31492920cd433063f55fd8033a1b98570f16fa82973a32f5e0.jpg",
+    "bytes": 237715
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09160_活动_猫猫汉堡店制作流程介绍_a68a957c26.jpg": {
+    "hash": "80f4de9ff61a5bb153485b0101fe024907a458e92ec0b6ae60b23208227f9601",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/80f4de9ff61a5bb153485b0101fe024907a458e92ec0b6ae60b23208227f9601/80f4de9ff61a5bb153485b0101fe024907a458e92ec0b6ae60b23208227f9601.jpg",
+    "bytes": 161680
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09180_活动_猫猫汉堡店煎肉玩法介绍_429c8ed983.jpg": {
+    "hash": "a8536d3bb2003eac8196770df599aad2081ba1ca0ebaf67eed0c1d978b462a84",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/a8536d3bb2003eac8196770df599aad2081ba1ca0ebaf67eed0c1d978b462a84/a8536d3bb2003eac8196770df599aad2081ba1ca0ebaf67eed0c1d978b462a84.jpg",
+    "bytes": 177042
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09200_活动_猫咪游戏演示侧面视角_d6876fe7bf.jpg": {
+    "hash": "d3cd53152e093cea75c01efdfeb385c7c71003b6421a6210ba21cb66e2a971bd",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/d3cd53152e093cea75c01efdfeb385c7c71003b6421a6210ba21cb66e2a971bd/d3cd53152e093cea75c01efdfeb385c7c71003b6421a6210ba21cb66e2a971bd.jpg",
+    "bytes": 259637
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09220_活动_猫咪经营游戏交互演示_9937a3629e.jpg": {
+    "hash": "88da93b87389e5b8eac2ad36bb49dead07800c2cc69b7c6524c5e3d9a917d2b8",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/88da93b87389e5b8eac2ad36bb49dead07800c2cc69b7c6524c5e3d9a917d2b8/88da93b87389e5b8eac2ad36bb49dead07800c2cc69b7c6524c5e3d9a917d2b8.jpg",
+    "bytes": 261470
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09240_活动_猫咪经营游戏页面演示_17fdc4bdd5.jpg": {
+    "hash": "4878c21e9e570ff3fe044eb38c73e0015d2536f56b6f580542d661f0feaff93a",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/4878c21e9e570ff3fe044eb38c73e0015d2536f56b6f580542d661f0feaff93a/4878c21e9e570ff3fe044eb38c73e0015d2536f56b6f580542d661f0feaff93a.jpg",
+    "bytes": 225945
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09260_活动_列车大厨角色画面特写_6930a39943.jpg": {
+    "hash": "6391b0d421ab8d4dfd23e505115215c35be83e5da4ab7ae2e17732cfde64ddac",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/6391b0d421ab8d4dfd23e505115215c35be83e5da4ab7ae2e17732cfde64ddac/6391b0d421ab8d4dfd23e505115215c35be83e5da4ab7ae2e17732cfde64ddac.jpg",
+    "bytes": 276781
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09280_活动_列车大厨厨师角色展示_c34f1dab12.jpg": {
+    "hash": "ec4365f567bb44e01bf9fa7dede28c395d456d2bfa191cb76cf64517bae13174",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/ec4365f567bb44e01bf9fa7dede28c395d456d2bfa191cb76cf64517bae13174/ec4365f567bb44e01bf9fa7dede28c395d456d2bfa191cb76cf64517bae13174.jpg",
+    "bytes": 279007
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09300_首页_活动_列车大厨作品介绍_f59b1c64fe.jpg": {
+    "hash": "c519ba6c2892219bd6427eb8f01d2896d71ee1b0673e3f7ec709d33bfea017ad",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/c519ba6c2892219bd6427eb8f01d2896d71ee1b0673e3f7ec709d33bfea017ad/c519ba6c2892219bd6427eb8f01d2896d71ee1b0673e3f7ec709d33bfea017ad.jpg",
+    "bytes": 299776
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09320_活动_DEAD SIGNAL游戏标题展示_fe4c2d8984.jpg": {
+    "hash": "5703e561d20c63f6e8db5d3c12fb3a6a19ad856accc94d0bffbfe9209fd16fac",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/5703e561d20c63f6e8db5d3c12fb3a6a19ad856accc94d0bffbfe9209fd16fac/5703e561d20c63f6e8db5d3c12fb3a6a19ad856accc94d0bffbfe9209fd16fac.jpg",
+    "bytes": 277937
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09340_首页_活动_雨夜射击游戏实机演示_f5bf109d8c.jpg": {
+    "hash": "6d25feffe8ca576af50afffd116d360442910a91d0cce10a7162d94a84c621ca",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/6d25feffe8ca576af50afffd116d360442910a91d0cce10a7162d94a84c621ca/6d25feffe8ca576af50afffd116d360442910a91d0cce10a7162d94a84c621ca.jpg",
+    "bytes": 244679
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09360_活动_学员展示网页与生成过程_9393fbd6fb.jpg": {
+    "hash": "7ecc7cdef0b259422a6cab611067393edb4c5b048cc45c83a8cbb85b1efec6b8",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/7ecc7cdef0b259422a6cab611067393edb4c5b048cc45c83a8cbb85b1efec6b8/7ecc7cdef0b259422a6cab611067393edb4c5b048cc45c83a8cbb85b1efec6b8.jpg",
+    "bytes": 247712
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09380_活动_学员讲解服装设计作品_37a563b60b.jpg": {
+    "hash": "a8b9ecf600b171a4473b050f93eba85b831252f0095975eeddafbb82f6daa3dc",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/a8b9ecf600b171a4473b050f93eba85b831252f0095975eeddafbb82f6daa3dc/a8b9ecf600b171a4473b050f93eba85b831252f0095975eeddafbb82f6daa3dc.jpg",
+    "bytes": 175405
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09400_活动_服装搭配页面投影_744b31b175.jpg": {
+    "hash": "d1c86736fa5e97bd306db41eb85ebdb3edd71c22970a4b97d3ec181e606c872c",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/d1c86736fa5e97bd306db41eb85ebdb3edd71c22970a4b97d3ec181e606c872c/d1c86736fa5e97bd306db41eb85ebdb3edd71c22970a4b97d3ec181e606c872c.jpg",
+    "bytes": 175864
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09420_活动_学员演示服装搭配页面_974f3d7fd5.jpg": {
+    "hash": "0e2318eb43bcf311e8b215dfbb998b4a3eb720960a1acbdc55872cd62f0214b3",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/0e2318eb43bcf311e8b215dfbb998b4a3eb720960a1acbdc55872cd62f0214b3/0e2318eb43bcf311e8b215dfbb998b4a3eb720960a1acbdc55872cd62f0214b3.jpg",
+    "bytes": 179047
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09440_活动_角色设计画面投影_02d6ea2c6c.jpg": {
+    "hash": "600cb8cad3436cbd2ccff881ff3bc4eb4973bb68c0fdae9a845bf866eac563fd",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/600cb8cad3436cbd2ccff881ff3bc4eb4973bb68c0fdae9a845bf866eac563fd/600cb8cad3436cbd2ccff881ff3bc4eb4973bb68c0fdae9a845bf866eac563fd.jpg",
+    "bytes": 195039
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09460_活动_学员展示游戏角色设计_43bba9c2c0.jpg": {
+    "hash": "f03ab6647bdb84281f7a3935e0e189f809a677681e5fe02ee80f94a93c3a8638",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/f03ab6647bdb84281f7a3935e0e189f809a677681e5fe02ee80f94a93c3a8638/f03ab6647bdb84281f7a3935e0e189f809a677681e5fe02ee80f94a93c3a8638.jpg",
+    "bytes": 192888
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09480_活动_彩色游戏设计稿投影_196379fd27.jpg": {
+    "hash": "61f1d53d1548212990d6ac69d4fcca4ebab3782497d57d7e5a588ea1d6adce15",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/61f1d53d1548212990d6ac69d4fcca4ebab3782497d57d7e5a588ea1d6adce15/61f1d53d1548212990d6ac69d4fcca4ebab3782497d57d7e5a588ea1d6adce15.jpg",
+    "bytes": 198730
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09500_活动_学员展示彩色游戏设计稿_36ed4b86e7.jpg": {
+    "hash": "1dff8a7089a9dac5904cbffaee91a5d31bae40e15c67ab53da34d509e2aca2cd",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/1dff8a7089a9dac5904cbffaee91a5d31bae40e15c67ab53da34d509e2aca2cd/1dff8a7089a9dac5904cbffaee91a5d31bae40e15c67ab53da34d509e2aca2cd.jpg",
+    "bytes": 202172
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09520_活动_课堂讲解侧面视角_d2bf1b010f.jpg": {
+    "hash": "8f5c0943b3adce3c1c9de11b7f9b5a018fef50f071d17dde62585d6b6738b560",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/8f5c0943b3adce3c1c9de11b7f9b5a018fef50f071d17dde62585d6b6738b560/8f5c0943b3adce3c1c9de11b7f9b5a018fef50f071d17dde62585d6b6738b560.jpg",
+    "bytes": 343526
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09540_首页_活动_讲师与学员课堂交流_25fca25f73.jpg": {
+    "hash": "553338a3f4d5ac4fa935631e85ba0f391baf5ea89e04cacd808540d74891114f",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/553338a3f4d5ac4fa935631e85ba0f391baf5ea89e04cacd808540d74891114f/553338a3f4d5ac4fa935631e85ba0f391baf5ea89e04cacd808540d74891114f.jpg",
+    "bytes": 421467
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09560_活动_学员使用电脑实操_ab21e78985.jpg": {
+    "hash": "8975baa81d53abc7e850feaeaf935e1ad84be7e69fc53a82dba38d55f7fae52f",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/8975baa81d53abc7e850feaeaf935e1ad84be7e69fc53a82dba38d55f7fae52f/8975baa81d53abc7e850feaeaf935e1ad84be7e69fc53a82dba38d55f7fae52f.jpg",
+    "bytes": 323913
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09600_活动_走廊活动宣传展板_4f814ada5d.jpg": {
+    "hash": "63ba731c284b52562e5fc109a8f32e2ca74f6250dd60a0190795a68e1f9bd282",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/63ba731c284b52562e5fc109a8f32e2ca74f6250dd60a0190795a68e1f9bd282/63ba731c284b52562e5fc109a8f32e2ca74f6250dd60a0190795a68e1f9bd282.jpg",
+    "bytes": 328105
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09620_活动_图书馆外观横图_097ac8ed0e.jpg": {
+    "hash": "38d787d97e1157d4bc146e937a908cdd3f75836a3a40786904601779c01bcedf",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/38d787d97e1157d4bc146e937a908cdd3f75836a3a40786904601779c01bcedf/38d787d97e1157d4bc146e937a908cdd3f75836a3a40786904601779c01bcedf.jpg",
+    "bytes": 655988
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09640_活动_讲台设备旁交流_b8574fe9ce.jpg": {
+    "hash": "8d1bc6e1b55c21c9906dc0e9b3892f009dc2e9503abc0a08f24d53e385ddf4c7",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/8d1bc6e1b55c21c9906dc0e9b3892f009dc2e9503abc0a08f24d53e385ddf4c7/8d1bc6e1b55c21c9906dc0e9b3892f009dc2e9503abc0a08f24d53e385ddf4c7.jpg",
+    "bytes": 156271
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09660_首页_活动_讲台分享与活动主题投影_efa41f1b28.jpg": {
+    "hash": "753c5644467f80cc7e6c76e5ab07a4f951389488c7767ab778e2b8d695a60c62",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/753c5644467f80cc7e6c76e5ab07a4f951389488c7767ab778e2b8d695a60c62/753c5644467f80cc7e6c76e5ab07a4f951389488c7767ab778e2b8d695a60c62.jpg",
+    "bytes": 276504
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/09680_活动_双人讲台交流_228647d78f.jpg": {
+    "hash": "7e6c597c1bc381b6b814f4453f6378dc9dc56b0ca5de0b6beea70fd61ddb31d2",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/7e6c597c1bc381b6b814f4453f6378dc9dc56b0ca5de0b6beea70fd61ddb31d2/7e6c597c1bc381b6b814f4453f6378dc9dc56b0ca5de0b6beea70fd61ddb31d2.jpg",
+    "bytes": 178078
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/10000_首页_封面_活动_教室分组实操全景_45275dbd04.jpg": {
+    "hash": "f21cd5f2511ce180386f6c7995b45483afec9ce9d54ecbbb896ee6c6ebc21336",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/f21cd5f2511ce180386f6c7995b45483afec9ce9d54ecbbb896ee6c6ebc21336/f21cd5f2511ce180386f6c7995b45483afec9ce9d54ecbbb896ee6c6ebc21336.jpg",
+    "bytes": 425738
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07840_活动视频_猫咪经营游戏交互短演示_1e6557b08d.jpg": {
+    "hash": "8c074d8696238a0a6a27706f57ede62f9446cceed91b625aa297e39a4ee2f670",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/8c074d8696238a0a6a27706f57ede62f9446cceed91b625aa297e39a4ee2f670/8c074d8696238a0a6a27706f57ede62f9446cceed91b625aa297e39a4ee2f670.jpg",
+    "bytes": 67592
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07860_活动视频_彩色游戏设计与生成过程_2c3bf48f06.jpg": {
+    "hash": "920bbc2a9a84a80dbc79ca7144c4ce96e1d3dd91cd9b1c7636cfcbbfa34d9611",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/920bbc2a9a84a80dbc79ca7144c4ce96e1d3dd91cd9b1c7636cfcbbfa34d9611/920bbc2a9a84a80dbc79ca7144c4ce96e1d3dd91cd9b1c7636cfcbbfa34d9611.jpg",
+    "bytes": 57637
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07880_活动视频_服装搭配与小院场景完整展示_eb87ff7116.jpg": {
+    "hash": "a2bee90210d3d8ee7e7ef9a4cb4fe8c7eb11cf012705361cd6930233b4eb72a8",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/a2bee90210d3d8ee7e7ef9a4cb4fe8c7eb11cf012705361cd6930233b4eb72a8/a2bee90210d3d8ee7e7ef9a4cb4fe8c7eb11cf012705361cd6930233b4eb72a8.jpg",
+    "bytes": 61424
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07900_活动视频_雨夜射击游戏现场试玩_9ee27a8dc7.jpg": {
+    "hash": "141face7b34c718d9b6204e8462e8130c2cb069c83877216a9c0f227e05ba95b",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/141face7b34c718d9b6204e8462e8130c2cb069c83877216a9c0f227e05ba95b/141face7b34c718d9b6204e8462e8130c2cb069c83877216a9c0f227e05ba95b.jpg",
+    "bytes": 65975
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07920_活动视频_小院场景与玩法展示_6566647027.jpg": {
+    "hash": "29ec4ad3dbe757ed061c8473ce1d6eb62b73a0778e5cda0ba1a428ee358f57f7",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/29ec4ad3dbe757ed061c8473ce1d6eb62b73a0778e5cda0ba1a428ee358f57f7/29ec4ad3dbe757ed061c8473ce1d6eb62b73a0778e5cda0ba1a428ee358f57f7.jpg",
+    "bytes": 69492
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07940_活动视频_游戏角色设计展示_a3a647d32e.jpg": {
+    "hash": "24cfd9eac657717616512473211a2251d9176e43827d6758a2ebbf58fe8838a5",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/24cfd9eac657717616512473211a2251d9176e43827d6758a2ebbf58fe8838a5/24cfd9eac657717616512473211a2251d9176e43827d6758a2ebbf58fe8838a5.jpg",
+    "bytes": 73381
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07960_活动视频_服装搭配页面短演示_6a101ebfa9.jpg": {
+    "hash": "8d1c555b27d13d42e0caf8d8da150a8a39fef33b3f145c02167285a2c5cc4d67",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/8d1c555b27d13d42e0caf8d8da150a8a39fef33b3f145c02167285a2c5cc4d67/8d1c555b27d13d42e0caf8d8da150a8a39fef33b3f145c02167285a2c5cc4d67.jpg",
+    "bytes": 63001
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/01_活动照片/视频封面/07980_活动视频_猫猫汉堡店作品讲解_6ec2142867.jpg": {
+    "hash": "38b3ba0adeac1b94cf96b888ca324b1ad0f77af70b9a84a0e99f2d5d25126851",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/38b3ba0adeac1b94cf96b888ca324b1ad0f77af70b9a84a0e99f2d5d25126851/38b3ba0adeac1b94cf96b888ca324b1ad0f77af70b9a84a0e99f2d5d25126851.jpg",
+    "bytes": 59270
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页01_你先别跑/截图/08000_对局结果排行_e0bf0e4e2b.png": {
+    "hash": "d71da27a919e213a58c9eae975555f9d82557b82fbeb6bae23525f5a98714c40",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/d71da27a919e213a58c9eae975555f9d82557b82fbeb6bae23525f5a98714c40/d71da27a919e213a58c9eae975555f9d82557b82fbeb6bae23525f5a98714c40.png",
+    "bytes": 187689
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页01_你先别跑/截图/09000_创建或加入房间_c224b198d9.png": {
+    "hash": "9778f58e37cb5999638ae400d795861796fe1f0403a225b6bdc714799a4d982e",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/9778f58e37cb5999638ae400d795861796fe1f0403a225b6bdc714799a4d982e/9778f58e37cb5999638ae400d795861796fe1f0403a225b6bdc714799a4d982e.png",
+    "bytes": 370531
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页01_你先别跑/截图/10000_主图_金库派对对局_ec21d50a67.png": {
+    "hash": "244af0de8d53794e2e0076f4dcef59e1da619c912bd1271098d204dc3161ad03",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/244af0de8d53794e2e0076f4dcef59e1da619c912bd1271098d204dc3161ad03/244af0de8d53794e2e0076f4dcef59e1da619c912bd1271098d204dc3161ad03.png",
+    "bytes": 1212135
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/07000_成品评分_926ab30473.png": {
+    "hash": "5845daa80caec7612afa958ec470d87223b51d2383a08c0936e2e1a391517f66",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/5845daa80caec7612afa958ec470d87223b51d2383a08c0936e2e1a391517f66/5845daa80caec7612afa958ec470d87223b51d2383a08c0936e2e1a391517f66.png",
+    "bytes": 516144
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/07500_配饰搭配_235dde738b.png": {
+    "hash": "5f2ffc1f48e1f19274780047cfa0be97f5408e8570105cba708f5e0ff3475757",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/5f2ffc1f48e1f19274780047cfa0be97f5408e8570105cba708f5e0ff3475757/5f2ffc1f48e1f19274780047cfa0be97f5408e8570105cba708f5e0ff3475757.png",
+    "bytes": 682441
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/08000_走针缝制_0a48544756.png": {
+    "hash": "039ba1c365d9995e33bb8b48e78d484cd820a56f4643e4c5134da760342e111d",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/039ba1c365d9995e33bb8b48e78d484cd820a56f4643e4c5134da760342e111d/039ba1c365d9995e33bb8b48e78d484cd820a56f4643e4c5134da760342e111d.png",
+    "bytes": 590898
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/08500_裙装调版_e178897df0.png": {
+    "hash": "709a8d306456c0636da85011a30ef81fb9fe2ded13529548c16f84c8ce6ad0a1",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/709a8d306456c0636da85011a30ef81fb9fe2ded13529548c16f84c8ce6ad0a1/709a8d306456c0636da85011a30ef81fb9fe2ded13529548c16f84c8ce6ad0a1.png",
+    "bytes": 646679
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/09000_裁缝铺操作录屏_5c07a82795.mp4": {
+    "hash": "2f550aab66431ba38ce1150641c363ca771afd18f547e41e1df0d741d16930f0",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/2f550aab66431ba38ce1150641c363ca771afd18f547e41e1df0d741d16930f0/2f550aab66431ba38ce1150641c363ca771afd18f547e41e1df0d741d16930f0.mp4",
+    "bytes": 1272058
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/09000_裁缝铺选布_17e30042a5.png": {
+    "hash": "6b5ea40adcb8c5cbd80364895d167ee8c0a3d06b3d6897718f4c90a920714322",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/6b5ea40adcb8c5cbd80364895d167ee8c0a3d06b3d6897718f4c90a920714322/6b5ea40adcb8c5cbd80364895d167ee8c0a3d06b3d6897718f4c90a920714322.png",
+    "bytes": 609971
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页02_有风的小院/截图/10000_主图_等距小院全景_368be440f5.png": {
+    "hash": "b1e97eb0e4363ff39097640fb696432bf788426da1cd58bb29e9fff6a976c6d2",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/b1e97eb0e4363ff39097640fb696432bf788426da1cd58bb29e9fff6a976c6d2/b1e97eb0e4363ff39097640fb696432bf788426da1cd58bb29e9fff6a976c6d2.png",
+    "bytes": 1035328
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页04_列车大厨/截图/07500_暂停菜单_07a1a4817d.png": {
+    "hash": "eb73fba43788437b2c998ee0a64fa9918f98d2e43b579b41e15a9f2e51ad5018",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/eb73fba43788437b2c998ee0a64fa9918f98d2e43b579b41e15a9f2e51ad5018/eb73fba43788437b2c998ee0a64fa9918f98d2e43b579b41e15a9f2e51ad5018.png",
+    "bytes": 471959
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页04_列车大厨/截图/08000_关卡结算_ffa9546b08.png": {
+    "hash": "628c60f8a64c585ae8b5ae0b7c28b3bdd9c74e4ae9f4e5b809ecee1d567a4fe4",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/628c60f8a64c585ae8b5ae0b7c28b3bdd9c74e4ae9f4e5b809ecee1d567a4fe4/628c60f8a64c585ae8b5ae0b7c28b3bdd9c74e4ae9f4e5b809ecee1d567a4fe4.png",
+    "bytes": 511908
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页04_列车大厨/截图/09000_列车大厨宣传片_13fbf17f38.mp4": {
+    "hash": "94ed3466313dbf74a496f21a9d952c89e7fd0af3a95895ea0a679470699947d1",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/94ed3466313dbf74a496f21a9d952c89e7fd0af3a95895ea0a679470699947d1/94ed3466313dbf74a496f21a9d952c89e7fd0af3a95895ea0a679470699947d1.mp4",
+    "bytes": 10451345
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页04_列车大厨/截图/09000_列车大厨开始页面_e2caff84d8.png": {
+    "hash": "b9864e3b1ddd4f3cd031d9d6126ec1c753ff3e204babf1be198ff45eeed58c25",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/b9864e3b1ddd4f3cd031d9d6126ec1c753ff3e204babf1be198ff45eeed58c25/b9864e3b1ddd4f3cd031d9d6126ec1c753ff3e204babf1be198ff45eeed58c25.png",
+    "bytes": 2009615
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页04_列车大厨/截图/10000_主图_食材消除与订单_42a3469b7c.png": {
+    "hash": "5b75ca5c883c20dc452579fed07df4026adee3988471872e19d6492b7f3adf9b",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/5b75ca5c883c20dc452579fed07df4026adee3988471872e19d6492b7f3adf9b/5b75ca5c883c20dc452579fed07df4026adee3988471872e19d6492b7f3adf9b.png",
+    "bytes": 622086
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页05_猫猫汉堡店/截图/08500_在线经营页面_571c2cc8fe.jpg": {
+    "hash": "c1218f6cc97388994a4e64c4e0eeb9b7617d571e759be80968d976b4f9b241e8",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/c1218f6cc97388994a4e64c4e0eeb9b7617d571e759be80968d976b4f9b241e8/c1218f6cc97388994a4e64c4e0eeb9b7617d571e759be80968d976b4f9b241e8.jpg",
+    "bytes": 106151
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页05_猫猫汉堡店/截图/09000_接待顾客_5b3244fc5e.jpg": {
+    "hash": "afcd7b3224dcb2c5aa72e9be71e2d0020537336bb6d1135f834ea60cde7547f2",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/afcd7b3224dcb2c5aa72e9be71e2d0020537336bb6d1135f834ea60cde7547f2/afcd7b3224dcb2c5aa72e9be71e2d0020537336bb6d1135f834ea60cde7547f2.jpg",
+    "bytes": 200351
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页05_猫猫汉堡店/截图/09000_猫猫汉堡店宣传片_fb10250c44.mp4": {
+    "hash": "c74f35e259fc653059b92f73b956435cdfc7c88026ca514de9b180ec8a890558",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/c74f35e259fc653059b92f73b956435cdfc7c88026ca514de9b180ec8a890558/c74f35e259fc653059b92f73b956435cdfc7c88026ca514de9b180ec8a890558.mp4",
+    "bytes": 3594954
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页05_猫猫汉堡店/截图/10000_主图_猫咪汉堡经营界面_04a68c71e0.jpg": {
+    "hash": "e006004a8fe6f5ed03632d41e485c8f41885e21c164402ec49ac16b75aad42bd",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/e006004a8fe6f5ed03632d41e485c8f41885e21c164402ec49ac16b75aad42bd/e006004a8fe6f5ed03632d41e485c8f41885e21c164402ec49ac16b75aad42bd.jpg",
+    "bytes": 217799
+  },
+  "2026-11-11_广州应用科技学院AI黑客松培训/02_案例/首页06_拣爱/截图/10000_主图_剧情与选项_3df43d6d76.png": {
+    "hash": "b0f89ed22949bc05b65028aa9602bd57e3644df4e734e52439704094f05e90a0",
+    "url": "https://media.bigapple.app/environments/production/publishers/pub_e06ae57c-f23b-41eb-9714-a64166d94723/apps/media/media/b0f89ed22949bc05b65028aa9602bd57e3644df4e734e52439704094f05e90a0/b0f89ed22949bc05b65028aa9602bd57e3644df4e734e52439704094f05e90a0.png",
+    "bytes": 117648
   }
 };

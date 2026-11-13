@@ -459,6 +459,42 @@ function listActivityVideos(activityDir) {
   return result;
 }
 
+// 清单里的视频/封面用原始文件名声明，网站压缩素材里的文件名可能带内容哈希。
+// 只在同一活动目录中按「原名或原名 + 哈希后缀」精确解析，避免构造不存在的云链接。
+function resolveDeclaredMediaPath(activityDir, declaredPath) {
+  const wanted = String(declaredPath || '').replaceAll('\\', '/');
+  if (!wanted) return '';
+  const exact = path.join(activityDir, ...wanted.split('/'));
+  if (fs.existsSync(exact) && fs.statSync(exact).isFile()) return wanted;
+  const wantedName = path.basename(wanted);
+  const stem = wantedName.replace(/\.[^.]+$/u, '');
+  const ext = path.extname(wantedName).toLowerCase();
+  const candidates = discoverFiles(activityDir)
+    .filter((item) => item.startsWith('01_活动照片/') && path.extname(item).toLowerCase() === ext)
+    .filter((item) => {
+      const name = path.basename(item);
+      const candidateStem = name.replace(/\.[^.]+$/u, '');
+      return candidateStem === stem || candidateStem.startsWith(`${stem}_`);
+    })
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  return candidates[0] || '';
+}
+
+function resolveVideoPresentation(manifest, activityDir, videos) {
+  const declaredPosters = manifest.videoPosters || {};
+  const declaredTitles = manifest.videoTitles || {};
+  const videoPosters = {};
+  const videoTitles = {};
+  for (const [declaredVideo, declaredPoster] of Object.entries(declaredPosters)) {
+    const videoPath = resolveDeclaredMediaPath(activityDir, declaredVideo);
+    const posterPath = resolveDeclaredMediaPath(activityDir, declaredPoster);
+    if (!videoPath || !posterPath || !videos.some((video) => video.path === videoPath)) continue;
+    videoPosters[videoPath] = posterPath;
+    if (declaredTitles[declaredVideo]) videoTitles[videoPath] = declaredTitles[declaredVideo];
+  }
+  return { videoPosters, videoTitles };
+}
+
 // 本地没有、旧 snapshot 里有的活动（按 id）原样保留，防止实习生只整理了一场活动
 // 就把其他活动从构建产物里悄悄抹掉。明确要删的 id 走 BIGAPPLE_REMOVE_ACTIVITIES。
 function mergeKeepingMissing(localList, previousList, idOf) {
@@ -487,6 +523,9 @@ function readActivityManifests() {
       const id = manifest.id || entry.name;
       const mirrorFolder = mirrorFolders.get(id);
       const mirrorPath = mirrorRoot && mirrorFolder ? path.join(mirrorRoot, mirrorFolder) : null;
+      const activityMediaPath = mirrorPath && fs.existsSync(mirrorPath) ? mirrorPath : path.join(mediaRoot, entry.name);
+      const videos = listActivityVideos(activityMediaPath);
+      const presentation = resolveVideoPresentation(manifest, activityMediaPath, videos);
       result.push({
         id,
         title: manifest.title || entry.name,
@@ -496,9 +535,9 @@ function readActivityManifests() {
         summary: manifest.summary || `${manifest.title || entry.name}活动资料与成员作品归档。`,
         tags: Array.isArray(manifest.tags) ? manifest.tags : [],
         ...(manifest.slug !== undefined ? { slug: manifest.slug } : {}),
-        videos: listActivityVideos(mirrorPath && fs.existsSync(mirrorPath) ? mirrorPath : path.join(mediaRoot, entry.name)),
-        ...(manifest.videoPosters ? { videoPosters: manifest.videoPosters } : {}),
-        ...(manifest.videoTitles ? { videoTitles: manifest.videoTitles } : {}),
+        videos,
+        ...(Object.keys(presentation.videoPosters).length ? { videoPosters: presentation.videoPosters } : {}),
+        ...(Object.keys(presentation.videoTitles).length ? { videoTitles: presentation.videoTitles } : {}),
       });
     } catch {}
   }
