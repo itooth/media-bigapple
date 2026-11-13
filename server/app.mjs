@@ -6,6 +6,7 @@ import { openStore } from './store.mjs';
 import { saveLogo } from './logos.mjs';
 import { respond } from './response.mjs';
 import { renderEvent } from '../src/lib/renderEvent.js';
+import { publicEvents } from './public-events.mjs';
 
 const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -116,10 +117,10 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Cache-Control', 'no-store');
     try {
-      const pathname = new URL(req.url, 'http://localhost').pathname;
+      const { pathname, searchParams } = new URL(req.url, 'http://localhost');
       const method = req.method;
       if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: store.events().length > 0 });
-      if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: store.events() });
+      if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: publicEvents(store.events(), searchParams) });
       const activityMatch = pathname.match(/^\/api\/activities\/([^/]+)$/);
       if (activityMatch && method === 'PUT') {
         const uid = decodeURIComponent(activityMatch[1]);
@@ -171,7 +172,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       if (publicMatch && method === 'GET') {
         const record = store.get(publicMatch[1]);
         if (!record) throw failure(404, '这个页面暂时不存在');
-        return send(res, 200, { brand: { name: record.name, logoUrl: record.logoUrl }, events: store.siteEvents(record.id) });
+        return send(res, 200, { brand: { name: record.name, logoUrl: record.logoUrl }, events: publicEvents(store.siteEvents(record.id), searchParams) });
       }
       if (pathname.startsWith('/api/admin/')) {
         if (method !== 'GET') requireMutation(req);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildCaseItems, caseDescription, caseSearchText, eventSearchText, matchesTokens, tokenizeQuery } from '../src/lib/caseArchive.js';
 import { groupCases } from '../src/lib/archive.js';
 import { parseRoute } from '../src/lib/routes.js';
+import { catalogEvent } from '../server/public-events.mjs';
 
 const events = [
   {
@@ -36,6 +37,18 @@ const events = [
     },
   },
 ];
+
+test('精简目录保留案例展示、全文搜索和活动搜索，移除现场媒体列表', () => {
+  const full = events.map(e => ({ ...e, detail: { ...e.detail, gallery: [{ image: '/scene.jpg' }], videos: [{ src: '/video.mp4' }] } }));
+  const catalog = full.map(catalogEvent);
+  assert.deepEqual(buildCaseItems(catalog), buildCaseItems(full));
+  for (let i = 0; i < full.length; i++) {
+    const titles = e => e.detail.productionGallery.map(c => c.title || '').filter(Boolean);
+    assert.equal(eventSearchText(catalog[i], titles(catalog[i])), eventSearchText(full[i], titles(full[i])));
+    assert.equal(catalog[i].detail.gallery, undefined);
+    assert.equal(catalog[i].detail.videos, undefined);
+  }
+});
 
 test('buildCaseItems 摊平案例，跳过没封面的条目，并按活动日期倒序', () => {
   const cases = buildCaseItems(events);

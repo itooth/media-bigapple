@@ -21,14 +21,20 @@ export default function App() {
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const [login, setLogin] = useState(false);
+  const view = route.eventId ? 'event' : 'catalog';
+  // Replacing a legacy URL with the returned canonical slug reuses the same response.
+  const requestedId = site?.tenant === route.tenant && site?.view === 'event' && route.eventId === site.events[0]?.slug
+    ? site.requestedId : route.eventId;
+  const endpoint = route.tenant ? `/api/sites/${route.tenant}` : '/api/site';
+  const requestKey = `${endpoint}?${view === 'event' ? `event=${encodeURIComponent(requestedId)}` : 'view=catalog'}`;
   useEffect(() => {
-    if (route.page === 'admin') return undefined;
-    const controller = new AbortController(); setSite(null); setError('');
-    api(route.tenant ? `/api/sites/${route.tenant}` : '/api/site', { signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) setSite({ ...data, tenant: route.tenant }); })
-      .catch((error) => { if (!controller.signal.aborted) setError(error.message); });
+    if (route.page === 'admin') { setSite(null); return undefined; }
+    const controller = new AbortController(); setError('');
+    api(requestKey, { signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) setSite({ ...data, tenant: route.tenant, view, requestedId, requestKey }); })
+      .catch((error) => { if (!controller.signal.aborted) setError({ key: requestKey, message: error.message }); });
     return () => controller.abort();
-  }, [route.tenant, route.page === 'admin', retry]);
+  }, [requestKey, route.page === 'admin', retry]);
   const goAdmin = async () => {
     try {
       const session = await api('/api/admin/session');
@@ -36,14 +42,21 @@ export default function App() {
     } catch { setLogin(true); }
   };
   if (route.page === 'admin') return <AdminPage onBack={() => navigate('/', { global: true })} setNavigationGuard={setNavigationGuard} />;
-  if (!site || site.tenant !== route.tenant) return <main className="site-loading shell" aria-live="polite"><h1>{error ? '页面暂不可访问' : '正在加载…'}</h1>{error && <><p>{error}</p><button className="text-button" onClick={() => setRetry((n) => n + 1)}>重新加载</button></>}</main>;
+  const message = error?.key === requestKey ? error.message : '';
+  const reload = () => setRetry((n) => n + 1);
+  if (!site || site.tenant !== route.tenant) return <Loading error={message} onRetry={reload} />;
   return <>
-    <Archive key={route.tenant || 'original'} route={route} navigate={navigate} site={site} onAdmin={goAdmin} />
+    <Archive key={route.tenant || 'original'} route={route} navigate={navigate} site={site} onAdmin={goAdmin}
+      loading={site.requestKey !== requestKey} error={message} onRetry={reload} />
     {login && <AdminLogin onClose={() => setLogin(false)} onSuccess={() => { setLogin(false); navigate('/admin'); }} />}
   </>;
 }
 
-function Archive({ route, navigate, site, onAdmin }) {
+function Loading({ error, onRetry }) {
+  return <main className="site-loading shell" aria-live="polite"><h1>{error ? '页面暂不可访问' : '正在加载…'}</h1>{error && <><p>{error}</p><button className="text-button" onClick={onRetry}>重新加载</button></>}</main>;
+}
+
+function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
   const allEvents = site.events;
   const brand = site.brand;
   const isCaseMode = route.page === 'cases';
@@ -59,10 +72,10 @@ function Archive({ route, navigate, site, onAdmin }) {
   const activeEvent = findEvent(allEvents, route.eventId);
   // 旧链接（中文文件夹名、旧编号）打开后把地址栏换成 ASCII 短链，用户从地址栏复制出去也能直接点开。
   useEffect(() => {
-    if (!activeEvent?.slug || route.eventId === activeEvent.slug) return;
+    if (loading || !activeEvent?.slug || route.eventId === activeEvent.slug) return;
     const suffix = route.page === 'detail' ? '' : `/${route.page}`;
     navigate(`${eventPath(activeEvent)}${suffix}`, { replace: true, instant: true });
-  }, [activeEvent, route.eventId, route.page, navigate]);
+  }, [loading, activeEvent, route.eventId, route.page, navigate]);
   const activeTag = route.tag || null;
 
   const caseTitlesByEvent = useMemo(() => {
@@ -127,10 +140,11 @@ function Archive({ route, navigate, site, onAdmin }) {
   }, [filterOpen, contentOpen]);
 
   useEffect(() => {
+    if (loading) return;
     const title = activeEvent?.detail.title;
     const name = brand?.name || 'BigApple Events';
     document.title = title ? `${title} - ${name}` : name;
-  }, [activeEvent, brand]);
+  }, [loading, activeEvent, brand]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -187,6 +201,11 @@ function Archive({ route, navigate, site, onAdmin }) {
     // 没有链接的案例：只做封面预览，不进任何详情页。
     setCasePreview({ items: [{ image: item.image, alt: item.alt || item.title, caption: `${item.title} · ${item.eventTitle}` }], index: 0 });
   };
+
+  if (loading) return <>
+    <Header brand={brand} activeNav={activeNav} onNavChange={setActiveNav} onSearchOpen={openSearch} onBrandClick={goArchive} />
+    <Loading error={error} onRetry={onRetry} />
+  </>;
 
   if (route.page !== 'archive' && route.page !== 'cases' && !activeEvent) {
     return (

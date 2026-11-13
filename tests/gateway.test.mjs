@@ -28,6 +28,22 @@ async function fixture(t, handler) {
   return `http://127.0.0.1:${gateway.address().port}`;
 }
 
+test('gateway forwards only catalog/event selectors to its fixed reseller', async (t) => {
+  const seen = [];
+  const base = await fixture(t, (req, res) => {
+    seen.push(req.url);
+    assert.equal(req.headers.cookie, undefined);
+    res.setHeader('Content-Type', 'application/json'); res.end('{"brand":{"name":"Selected"},"events":[]}');
+  });
+  for (const query of ['view=catalog', 'event=2026-10-28', `event=${encodeURIComponent('中文活动')}`, 'event=']) {
+    const response = await fetch(`${base}/api/site?${query}&reseller=9999&url=https://evil.example`, { headers: { Cookie: 'private=1' } });
+    assert.equal(response.status, 200);
+    assert.equal(seen.at(-1), `/api/sites/6024?${new URLSearchParams(query)}`);
+  }
+  await fetch(`${base}/api/site?view=admin`);
+  assert.equal(seen.at(-1), '/api/sites/6024');
+});
+
 test('brand root and every activity route read one shared page; API always reads fixed reseller with no forwarded credentials', async (t) => {
   const seen = [];
   const site = { brand: { name: 'Polo Events' }, events: [{ uid: 'selected-only', detail: { gallery: ['photo'], notes: 'x'.repeat(4000) } }] };

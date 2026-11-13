@@ -13,12 +13,17 @@ export function createGateway({ origin, resellerId, timeoutMs = 20000 }) {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     const errorPage = (status, message) => respond(req, res, status, 'text/html; charset=utf-8', `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>页面提示</title><body><p>${message}</p><a href="/">返回首页</a></body></html>`);
     try {
-      const pathname = new URL(req.url, 'http://gateway.local').pathname;
+      const { pathname, searchParams } = new URL(req.url, 'http://gateway.local');
       if (!['GET', 'HEAD'].includes(req.method)) return errorPage(405, '不支持的操作。');
       if (pathname === '/api/health') return respond(req, res, 200, 'application/json', '{"ok":true}');
       let target, expectedType;
       if (pathname === '/api/site') {
         target = `/api/sites/${resellerId}`; expectedType = 'application/json';
+        // Only forward public read selectors; the reseller ID always comes from configuration.
+        const query = new URLSearchParams();
+        if (searchParams.has('event')) query.set('event', searchParams.get('event'));
+        else if (searchParams.get('view') === 'catalog') query.set('view', 'catalog');
+        if (query.size) target += `?${query}`;
       } else if (/^\/logos\/[a-f0-9]{64}\.png$/.test(pathname)) {
         target = pathname; expectedType = 'image/png';
       } else if (['/', '/index.html', '/events', '/events/'].includes(pathname) || /^\/(?:events\/[^/]+(?:\/(?:gallery|production-gallery))?|filter\/[^/]+)\/?$/.test(pathname)) {

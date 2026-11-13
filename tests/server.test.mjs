@@ -33,6 +33,37 @@ async function fixture(t, extra = {}) {
 }
 const createBody = (clientKey = 'a-fixed-client-key-0001') => ({ clientKey, name: 'Polo Events', logoUrl: '', activityIds: events.map((e) => e.uid) });
 
+test('catalog omits scene media; single-event reads preserve aliases, scope and current brand selections', async (t) => {
+  const f = await fixture(t);
+  const full = await (await f.request('/api/site')).json();
+  const catalog = await (await f.request('/api/site?view=catalog')).json();
+  assert.equal(catalog.events.length, 2);
+  assert.equal(JSON.stringify(catalog).includes('photo-a'), false);
+  assert.equal(JSON.stringify(catalog).includes('work-a'), false);
+  for (const event of full.events) for (const key of [event.uid, event.slug]) {
+    const response = await f.request(`/api/site?event=${encodeURIComponent(key)}`);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual((await response.json()).events, [event]);
+  }
+  assert.deepEqual((await (await f.request('/api/site?event=missing')).json()).events, []);
+  assert.deepEqual((await (await f.request('/api/site?event=')).json()).events, []);
+  await f.login();
+  const record = await (await f.request('/api/admin/resellers', { method: 'POST', body: { ...createBody(), activityIds: ['activity-b'] } })).json();
+  const scoped = `/api/sites/${record.id}`;
+  for (const key of ['activity-a', full.events[0].slug]) {
+    assert.deepEqual((await (await f.request(`${scoped}?event=${key}`)).json()).events, []);
+  }
+  // Shared legacy IDs must resolve inside the selected subset, never in the full catalog.
+  assert.deepEqual((await (await f.request(`${scoped}?event=shared-id`)).json()).events, [full.events[1]]);
+  assert.equal((await (await f.request(`${scoped}?view=catalog`)).json()).events.length, 1);
+  assert.equal((await f.request('/api/sites/9999?view=catalog')).status, 404);
+  await f.request(`/api/admin/resellers/${record.id}`, { method: 'PUT', body: { ...record, name: '更新品牌', activityIds: ['activity-a'] } });
+  const updated = await (await f.request(`${scoped}?event=activity-a`)).json();
+  assert.equal(updated.brand.name, '更新品牌');
+  assert.deepEqual(updated.events, [full.events[0]]);
+  assert.deepEqual((await (await f.request(`${scoped}?event=activity-b`)).json()).events, []);
+});
+
 test('a configured four-character password authenticates and wrong passwords remain rejected', async (t) => {
   const f = await fixture(t, { adminPassword: 'test' });
   assert.equal((await f.request('/api/admin/login', { method: 'POST', body: { password: 'wrong' } })).status, 401);
@@ -174,12 +205,18 @@ test('team members add, update and append to one activity; it renders on read an
   assert.equal(created.status, 201); assert.equal((await created.json()).activities, 3);
   assert.equal(seen.at(-1).authorization, 'Bearer badt_team');
   assert.equal((await put({ ...newSource, record: { ...newSource.record, title: '新活动改名' } })).status, 200);
+  const freshCatalog = await (await f.request('/api/site?view=catalog')).json();
+  assert.equal(freshCatalog.events[0].partner, '新活动改名');
+  assert.equal(freshCatalog.events[0].detail.gallery, undefined);
   assert.equal((await f.request(url, { method: 'PUT', headers: teamHeaders, body: { source: { ...newSource, uid: 'other-folder' } } })).status, 400);
   // Same public id under a different folder is a different activity: reject instead of merging.
   assert.equal((await put({ ...newSource, uid: 'other-folder', record: { ...newSource.record, folder: 'other-folder' } })).status, 409);
   // Append two photos; a cover mark is rejected because it would fight the existing cover.
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09500_封面_新.jpg', { isCover: 1 })] } })).status, 400);
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg'), photo('09900_签到.jpg'), photo('06000_作品视频_演示.mp4')], videos: [{ path: '01_活动照片/06000_作品视频_演示.mp4', name: '06000_作品视频_演示.mp4' }] } })).status, 200);
+  const freshDetail = await (await f.request(`/api/site?event=${encodeURIComponent(newSource.uid)}`)).json();
+  assert.equal(freshDetail.events.length, 1);
+  assert.deepEqual(freshDetail.events[0].detail.gallery.map(g => g.caption), ['封面_合照', '签到', '讲解']);
   await f.restart();
   const site = await (await f.request('/api/site')).json();
   assert.deepEqual(site.events.map((e) => e.partner), ['新活动改名', '活动甲', '活动乙']);
@@ -199,6 +236,8 @@ test('only an admin session can remove an activity', async (t) => {
   await f.login();
   assert.equal((await f.request('/api/activities/activity-a', { method: 'DELETE' })).status, 200);
   assert.deepEqual((await (await f.request('/api/site')).json()).events.map((e) => e.uid), ['activity-b']);
+  assert.deepEqual((await (await f.request('/api/site?event=activity-a')).json()).events, []);
+  assert.deepEqual((await (await f.request('/api/site?view=catalog')).json()).events.map(e => e.uid), ['activity-b']);
 });
 
 test('archived work pages are served sandboxed from the works folder only', async (t) => {
