@@ -3,6 +3,17 @@ import { eventPresentation, downloadItems } from '../lib/eventPresentation.js';
 import StoryViewer from './StoryViewer.jsx';
 import '../event-detail.css';
 
+// Jump across a long album without scrolling past (and loading) every photo.
+// Keep native link behavior for modified clicks and preserve the shareable anchor.
+function jumpToSection(event) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const target = document.getElementById(event.currentTarget.hash.slice(1));
+  if (!target) return;
+  event.preventDefault();
+  window.history.pushState(null, '', event.currentTarget.href);
+  target.scrollIntoView({ behavior: 'instant', block: 'start' });
+}
+
 function useSwipe(change) {
   const start = useRef(null), suppress = useRef(0);
   return {
@@ -86,14 +97,14 @@ export default function EventDetail({ event, onBack }) {
       <div className="story-copy"><p className="story-eyebrow">{[view.date, view.city].filter(Boolean).join(' · ')}</p>
         <h1 id="story-title">{view.title}</h1>{view.summary && <p className="story-intro">{view.summary}</p>}
         {view.logos.length > 0 && <div className="story-partners" aria-label="活动合作方">{view.logos.map((logo, i) => <div key={logo.id || i}><img src={logo.image} alt={logo.name} /><span>{logo.name}{logo.role && <small>{logo.role}</small>}</span></div>)}</div>}
-        <div className="story-hero-links">{worksExist ? <a href="#story-works" className="story-primary">查看案例 <span>↗</span></a> : null}{view.photos.length || view.sceneVideos.length ? <a href="#story-scene">图片视频 ↓</a> : null}</div>
+        <div className="story-hero-links">{worksExist ? <a href="#story-works" className="story-primary" onClick={jumpToSection}>查看案例 <span>↗</span></a> : null}{view.photos.length || view.sceneVideos.length ? <a href="#story-scene" onClick={jumpToSection}>图片视频 ↓</a> : null}</div>
       </div>
       {hero && <div className="story-hero-carousel" ref={heroArea} {...heroSwipe}><button className="story-hero-open" onClick={() => open(view.hero, heroIndex, '活动海报与封面')} aria-label={`放大${hero.caption || '活动封面'}`}>
         <img src={hero.image} alt={hero.alt || view.title} fetchPriority="high" /><span>↗</span></button>
         <div className="story-hero-bar"><span>{String(heroIndex + 1).padStart(2, '0')} — {hero.caption || '活动封面'}</span>{view.hero.length > 1 && <div>{view.hero.map((item, i) => <button className="story-hero-dot" key={item.image} onClick={() => setHeroIndex(i)} aria-label={`查看${item.caption || `第${i + 1}张`}`} aria-pressed={i === heroIndex}>●</button>)}<button onClick={() => setPlaying((value) => !value)} aria-label={playing ? '暂停首屏轮播' : '播放首屏轮播'}>{playing ? 'Ⅱ' : '▷'}</button></div>}</div>
       </div>}
     </section>
-    <nav className="story-nav" aria-label="活动内容导航"><a href="#story-scene">图片视频</a><a href="#story-works">案例</a></nav>
+    <nav className="story-nav" aria-label="活动内容导航"><a href="#story-scene" onClick={jumpToSection}>图片视频</a><a href="#story-works" onClick={jumpToSection}>案例</a></nav>
     <section className="story-section" id="story-scene" aria-labelledby="story-scene-title"><div className="story-section-heading"><h2 id="story-scene-title">图片视频</h2><p>回看这次活动的现场。</p><small>{view.photos.length} 张照片 · {view.sceneVideos.length} 段视频</small><BulkDownload view={view} /></div>
       <div className="story-photo-grid">{view.photos.map((photo, index) => <button className="story-photo" key={photo.image} onClick={() => open(view.photos, index, '现场相册')} aria-label={`放大照片：${photo.caption || index + 1}`}><img src={photo.thumb} alt={photo.alt} loading="lazy" decoding="async" /><span aria-hidden="true">↗</span></button>)}</div>
       {view.sceneVideos.length > 0 && <div className="story-works-grid story-scene-videos">{view.sceneVideos.map((video) => <VideoCard key={video.id} video={video} open={open} label="现场视频" />)}</div>}
@@ -108,7 +119,7 @@ export default function EventDetail({ event, onBack }) {
       {view.resources.length > 0 && <div>{view.resources.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer">{item.title}<span>↗</span></a>)}</div>}
       {view.media.length > 0 && <div><h3>社媒报道</h3>{view.media.map((item, i) => <a key={item.id || i} href={item.href} target="_blank" rel="noreferrer">{item.label || item.title || '活动报道'}<span>↗</span></a>)}</div>}
     </details> : null}
-    <footer className="story-footer"><span>{view.title}</span><a href="#story-top">回到顶部 ↑</a></footer>
+    <footer className="story-footer"><span>{view.title}</span><a href="#story-top" onClick={jumpToSection}>回到顶部 ↑</a></footer>
     {viewer && <StoryViewer {...viewer} onChange={(index) => setViewer((current) => ({ ...current, index }))} onClose={() => setViewer(null)} />}
   </main></div>;
 }
