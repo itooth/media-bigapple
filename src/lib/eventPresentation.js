@@ -84,10 +84,14 @@ export function eventPresentation(event) {
   });
   const media = (detail.media || []).flatMap((item) => safeUrl(item.href) ? [{ ...item, href: safeUrl(item.href) }] : []);
   const logos = (extra.partners || []).flatMap((item) => imageOf(item) ? [{ ...item, image: imageOf(item), name: item.name || '' }] : []);
+  const imageGroups = [...groups.values()].filter((g) => g.slides.length);
+  // A group's website is an action on its card. Keep the complete link list for ZIP notes.
+  const groupedLinks = new Set(imageGroups.flatMap((group) => group.links.map((link) => link.href)));
+  const standaloneWebsites = websites.filter((website) => !groupedLinks.has(website.href));
   return { id: event.uid || event.id, title: extra.headline || detail.title || event.partner,
     summary: extra.intro || detail.summary || event.description || '', date: detail.date || event.sourceDate || '',
-    city: detail.city || '', hero, photos, groups: [...groups.values()].filter((g) => g.slides.length),
-    websites, sceneVideos: videos(detail.videos), workVideos: videos(detail.productionVideos),
+    city: detail.city || '', hero, photos, groups: imageGroups,
+    websites, standaloneWebsites, sceneVideos: videos(detail.videos), workVideos: videos(detail.productionVideos),
     logos, resources, media };
 }
 

@@ -31,14 +31,30 @@ test('all live activity media and links survive the presentation adapter without
     assert.equal(JSON.stringify(event), before);
   }
 });
-test('same-title distinct cases and image plus website forms remain distinct; unsafe URLs rejected', () => {
+test('same-title distinct cases survive, while their website is an action on the image card', () => {
   const view = eventPresentation({ detail: { gallery: ['https://example.test/a.jpg'], productionGallery: [
     { caseId: 'a', image: 'https://example.test/work.jpg', href: 'https://example.test', title: '同名' },
     { caseId: 'b', image: 'https://example.test/work.jpg', title: '同名' },
   ], presentation: { resources: [{ href: 'javascript:alert(1)' }] } } });
   assert.equal(view.photos.length, 1); assert.equal(view.groups.length, 2); assert.equal(view.websites.length, 1);
+  assert.equal(view.standaloneWebsites.length, 0);
+  assert.equal(view.groups[0].links[0].href, 'https://example.test');
   assert.equal(view.resources.length, 0);
   assert.equal(safeUrl('//evil.test'), '');
+});
+test('a case with multiple screenshots renders once; link-only cases and ZIP links survive', () => {
+  const screenshot = { caseId: 'site', title: '企业官网', image: 'https://x.test/home.png', href: 'https://x.test/site' };
+  const view = eventPresentation({ detail: {
+    productionGallery: [screenshot, { ...screenshot, image: 'https://x.test/about.png' },
+      { caseId: 'link-only', title: '仅有链接', href: 'https://x.test/tool' }],
+    productions: [{ ...screenshot, id: 'featured-copy' }],
+    presentation: { websites: [{ title: '独立网站', href: 'https://x.test/other', image: 'https://x.test/other.png' }] },
+  } });
+  assert.equal(view.groups.length, 1);
+  assert.equal(view.groups[0].slides.length, 2);
+  assert.deepEqual(view.standaloneWebsites.map(w => w.href), ['https://x.test/tool', 'https://x.test/other']);
+  assert.deepEqual(view.websites.map(w => w.href), ['https://x.test/site', 'https://x.test/tool', 'https://x.test/other']);
+  assert.equal(downloadItems(view).filter(i => i.name.startsWith('03_')).length, 2);
 });
 test('download entries deduplicate identical URLs and never collide on file names', () => {
   const view = eventPresentation({image:'https://x.test/a.pdf',detail:{presentation:{resources:[{title:'素材',href:'https://x.test/b.pdf',downloadable:true}]}}});

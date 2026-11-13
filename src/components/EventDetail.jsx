@@ -24,10 +24,12 @@ function ImageGroup({ group, open }) {
   const swipe = useSwipe(change), slide = slides[index];
   return <article className="story-work"><div className="story-work-media" {...swipe}>
     <button className="story-work-open" onClick={() => open(slides, index, group.title)} aria-label={`查看${group.title}`}>
-      <img src={slide.thumb || slide.image} alt={slide.alt} loading="lazy" decoding="async" /><span className="story-type">图片作品</span>
+      <img src={slide.thumb || slide.image} alt={slide.alt} loading="lazy" decoding="async" /><span className="story-type">{group.links.length ? '网站作品' : '图片作品'}</span>
     </button>
     {slides.length > 1 && <div className="story-image-controls"><button onClick={() => change(-1)} aria-label={`${group.title}上一张`}>‹</button><span>{index + 1} / {slides.length}</span><button onClick={() => change(1)} aria-label={`${group.title}下一张`}>›</button></div>}
-  </div><button className="story-work-title" onClick={() => open(slides, index, group.title)}><h3>{group.title}</h3><span>↗</span></button>{group.description && <p>{group.description}</p>}</article>;
+  </div><button className="story-work-title" onClick={() => open(slides, index, group.title)}><h3>{group.title}</h3><span>↗</span></button>{group.description && <p>{group.description}</p>}
+    {group.links.map((link) => <a className="story-visit" key={link.href} href={link.href} target="_blank" rel="noreferrer">{group.links.length > 1 ? link.title : '打开网站'} ↗</a>)}
+  </article>;
 }
 function VideoCard({ video, open, label }) {
   return <article className="story-work"><button className="story-work-open story-video-open" onClick={() => open([video], 0, label)} aria-label={`播放${video.title}`}>
@@ -98,7 +100,7 @@ export default function EventDetail({ event, onBack }) {
     </section>
     <section className="story-section" id="story-works" aria-labelledby="story-works-title"><div className="story-section-heading"><h2 id="story-works-title">案例</h2>{worksExist ? <p>图片、网站与视频，看看大家做出的作品。</p> : null}</div>
       <div className="story-works-grid">{view.groups.map((group) => <ImageGroup key={group.id} group={group} open={open} />)}
-        {view.websites.map((website) => <article className="story-work" key={website.id || website.href}>{website.image && <button className="story-work-open" onClick={() => open([{ image: website.image, alt: website.title, caption: website.title }], 0, website.title)} aria-label={`预览${website.title}`}><img src={website.image} alt={website.title} loading="lazy" /><span className="story-type">网站作品</span></button>}<a className="story-work-title" href={website.href} target="_blank" rel="noreferrer"><h3>{website.title}</h3><span>↗</span></a>{website.description && <p>{website.description}</p>}<a className="story-visit" href={website.href} target="_blank" rel="noreferrer">打开网站 ↗</a></article>)}
+        {view.standaloneWebsites.map((website) => <article className="story-work" key={website.id || website.href}>{website.image && <button className="story-work-open" onClick={() => open([{ image: website.image, alt: website.title, caption: website.title }], 0, website.title)} aria-label={`预览${website.title}`}><img src={website.image} alt={website.title} loading="lazy" /><span className="story-type">网站作品</span></button>}<a className="story-work-title" href={website.href} target="_blank" rel="noreferrer"><h3>{website.title}</h3><span>↗</span></a>{website.description && <p>{website.description}</p>}<a className="story-visit" href={website.href} target="_blank" rel="noreferrer">打开网站 ↗</a></article>)}
         {view.workVideos.map((video) => <VideoCard key={video.id} video={video} open={open} label="作品视频" />)}
       </div>
     </section>
