@@ -7,6 +7,8 @@ import { saveLogo } from './logos.mjs';
 import { respond } from './response.mjs';
 import { renderEvent } from '../src/lib/renderEvent.js';
 import { publicEvents } from './public-events.mjs';
+import { findEvent } from '../src/lib/eventSlug.js';
+import { injectAgentHtml, renderEventDoc, renderIndex, searchArchive } from './agent-docs.mjs';
 
 const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -54,7 +56,7 @@ function renderSource(uid, source) {
 // Append: same-path entries are replaced, new ones added; everything else in the source stays.
 const mergeByPath = (current = [], added = []) => [...current.filter((item) => !added.some((next) => next.path === item.path)), ...added];
 
-export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', worksDir = path.join(distDir, '..', 'works'), isTeamMember = resolveTeamMember }) {
+export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', worksDir = path.join(distDir, '..', 'works'), agentNotesFile = path.join(distDir, '..', 'agent', 'image-notes.json'), isTeamMember = resolveTeamMember }) {
   if (!adminPassword || adminPassword.length < 4 || adminPassword.length > 512 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
   if (!events.length) throw new Error('活动目录为空');
   const store = openStore(dataDir);
@@ -82,6 +84,10 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
   const cookieName = secureCookies ? '__Host-ba_admin' : 'ba_admin';
   const cookie = (token, age) => `${cookieName}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookies ? '; Secure' : ''}`;
   const metadata = () => store.events().map((e) => ({ id: e.uid, title: e.partner, date: e.sourceDate }));
+  // Reviewed visual notes keyed by media sha256; optional so a missing file only drops the「看图」column.
+  const agentNotes = fs.existsSync(agentNotesFile) ? JSON.parse(fs.readFileSync(agentNotesFile, 'utf8')).images || {} : {};
+  const siteOrigin = (req) => origin || `${secureCookies ? 'https' : 'http'}://${/^[a-z0-9.-]+(?::\d+)?$/i.test(req.headers.host || '') ? req.headers.host : 'media.bigapple.work'}`;
+  const text = (res, type, body) => respond(res.req, res, 200, `${type}; charset=utf-8`, body);
   const send = (res, status, data) => respond(res.req, res, status, 'application/json; charset=utf-8', JSON.stringify(data));
   const getSession = (req) => {
     const token = req.headers.cookie?.split(';').map((p) => p.trim()).find((p) => p.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
@@ -121,6 +127,19 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       const method = req.method;
       if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: store.events().length > 0 });
       if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: publicEvents(store.events(), searchParams) });
+      if (pathname === '/llms.txt' && ['GET', 'HEAD'].includes(method)) return text(res, 'text/plain', renderIndex(store.events(), siteOrigin(req), agentNotes));
+      const agentDoc = pathname.match(/^\/agent\/events\/([^/]+)\.md$/);
+      if (agentDoc && ['GET', 'HEAD'].includes(method)) {
+        let key; try { key = decodeURIComponent(agentDoc[1]); } catch { throw failure(404, '活动不存在'); }
+        const event = findEvent(store.events(), key);
+        const doc = event && renderEventDoc(event, siteOrigin(req), agentNotes, Number(searchParams.get('page') || 1));
+        if (!doc) throw failure(404, event ? '没有这一页' : '活动不存在，可在 /llms.txt 查看全部活动');
+        return text(res, 'text/markdown', doc);
+      }
+      if (pathname === '/api/agent/search' && method === 'GET') {
+        const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 30));
+        return send(res, 200, searchArchive(store.events(), siteOrigin(req), (searchParams.get('q') || '').slice(0, 200), agentNotes, limit));
+      }
       const activityMatch = pathname.match(/^\/api\/activities\/([^/]+)$/);
       if (activityMatch && method === 'PUT') {
         const uid = decodeURIComponent(activityMatch[1]);
@@ -256,7 +275,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         return res.end(method === 'HEAD' ? undefined : fs.readFileSync(file));
       }
       // Single-file Vite output. No filesystem path is derived from the request.
-      const html = fs.readFileSync(path.join(distDir, 'index.html'));
+      const html = injectAgentHtml(fs.readFileSync(path.join(distDir, 'index.html'), 'utf8'), store.events(), siteOrigin(req), pathname);
       respond(req, res, 200, 'text/html; charset=utf-8', html);
     } catch (error) {
       if (!res.headersSent) send(res, error.status || 500, { error: error.status ? error.message : '操作未完成，请稍后重试' });

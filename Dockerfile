@@ -15,6 +15,7 @@ COPY works ./works
 COPY src/lib ./src/lib
 COPY src/data/eventSlugs.json ./src/data/eventSlugs.json
 COPY bootstrap ./bootstrap
+COPY agent ./agent
 COPY scripts/backup-data.mjs ./scripts/backup-data.mjs
 EXPOSE 3000
 CMD ["node", "server/index.mjs"]

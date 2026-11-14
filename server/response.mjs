@@ -7,7 +7,7 @@ export function respond(req, res, status, contentType, body) {
     return encoding === 'gzip' && !params.some((param) => /^\s*q=0(?:\.0*)?\s*$/.test(param));
   });
   res.setHeader('Vary', 'Accept-Encoding');
-  if (bytes.length > 2048 && acceptsGzip && /json|html/.test(contentType)) {
+  if (bytes.length > 2048 && acceptsGzip && /json|text\//.test(contentType)) {
     bytes = gzipSync(bytes); res.setHeader('Content-Encoding', 'gzip');
   }
   res.writeHead(status, { 'Content-Type': contentType, 'Content-Length': bytes.length });

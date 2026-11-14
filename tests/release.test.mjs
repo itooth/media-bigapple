@@ -10,7 +10,7 @@ test('Docker build context excludes live database, passwords, caches and nested 
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const source = path.join(root, 'source'); fs.mkdirSync(source);
   for (const name of ['Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'index.html', 'vite.config.js']) fs.writeFileSync(path.join(source, name), 'fixture');
-  for (const name of ['src', 'server', 'bootstrap', 'scripts', 'works', 'works/pdf-ocr', '.data', 'node_modules', '.git']) fs.mkdirSync(path.join(source, name));
+  for (const name of ['src', 'server', 'bootstrap', 'scripts', 'works', 'works/pdf-ocr', 'agent', '.data', 'node_modules', '.git']) fs.mkdirSync(path.join(source, name));
   fs.writeFileSync(path.join(source, 'server', 'app.mjs'), 'public-code');
   fs.writeFileSync(path.join(source, 'works', 'pdf-ocr', 'index.html'), 'work-page');
   for (const name of ['.env', '.data/local-admin-password', '.data/resellers.sqlite', 'src/.env.production', '.git/config', 'node_modules/dependency.js']) fs.writeFileSync(path.join(source, name), 'must-not-ship');
