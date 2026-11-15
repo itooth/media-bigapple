@@ -214,8 +214,12 @@ test('team members add, update and append to one activity; it renders on read an
   // Append two photos; a cover mark is rejected because it would fight the existing cover.
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09500_封面_新.jpg', { isCover: 1 })] } })).status, 400);
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg'), photo('09900_签到.jpg'), photo('06000_作品视频_演示.mp4')], videos: [{ path: '01_活动照片/06000_作品视频_演示.mp4', name: '06000_作品视频_演示.mp4' }] } })).status, 200);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { social: [{ label: '活动报道', href: 'https://example.test/report' }] } })).status, 200);
+  }
   const freshDetail = await (await f.request(`/api/site?event=${encodeURIComponent(newSource.uid)}`)).json();
   assert.equal(freshDetail.events.length, 1);
+  assert.equal(freshDetail.events[0].detail.media.filter(m => m.href === 'https://example.test/report').length, 1);
   assert.deepEqual(freshDetail.events[0].detail.gallery.map(g => g.caption), ['封面_合照', '签到', '讲解']);
   await f.restart();
   const site = await (await f.request('/api/site')).json();

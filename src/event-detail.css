@@ -14,3 +14,14 @@
 .story-viewer-bar .story-save{font-size:12px;width:auto;white-space:nowrap;padding:0}
 .story-viewer-bar .story-save:disabled{opacity:.65;cursor:wait}
 @media(max-width:650px){.story-viewer-bar .story-save{font-size:10px}.story-viewer-bar>div:first-child{min-width:0}.story-viewer-bar>div:last-child{flex-shrink:0}}
+
+.story-viewer-thumbs { display: flex; gap: 8px; overflow-x: auto; padding: 8px 20px; flex-shrink: 0; }
+.story-viewer-thumbs button { flex: 0 0 56px; height: 48px; padding: 2px; border: 2px solid transparent; background: transparent; border-radius: 6px; cursor: pointer; }
+.story-viewer-thumbs button[aria-pressed="true"] { border-color: #fff; }
+.story-viewer-thumbs img { width: 100%; height: 100%; object-fit: cover; border-radius: 3px; }
+.story-viewer[open] { display: flex; flex-direction: column; overflow: hidden; }
+.story-viewer-bar { flex-shrink: 0; }
+.story-viewer-content { flex: 1; min-height: 0; height: auto; }
+.story-viewer-tip { flex-shrink: 0; }
+
+.case-image-count { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 5px; background: #191718cc; color: white; font-size: 12px; }

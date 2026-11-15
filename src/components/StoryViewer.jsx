@@ -30,6 +30,11 @@ export default function StoryViewer({ items, index, onChange, onClose, label }) 
     node.showModal(); document.body.style.overflow = 'hidden';
     return () => { node.close(); document.body.style.overflow = overflow; prior?.focus?.({ preventScroll: true }); };
   }, []);
+  useEffect(() => {
+    if (video || items.length < 2) return;
+    const neighbors = [-1, 1].map((step) => { const image = new Image(); image.src = items[(index + step + items.length) % items.length].image; return image; });
+    return () => neighbors.forEach((image) => { image.src = ''; });
+  }, [index, items, video]);
   const move = (step) => { if (!video && items.length > 1) onChange((index + step + items.length) % items.length); };
   return <dialog ref={dialog} className="story-viewer" aria-label={label} onCancel={(e) => { e.preventDefault(); onClose(); }}
     onKeyDown={(e) => { if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); } if (e.key === 'ArrowRight') { e.preventDefault(); move(1); } }}>
@@ -40,6 +45,6 @@ export default function StoryViewer({ items, index, onChange, onClose, label }) 
     }}>
       {video ? <video key={item.src} src={item.src} poster={item.poster || undefined} controls playsInline preload="metadata" /> : <img src={item.image} alt={item.alt || item.caption || ''} />}
       {!video && items.length > 1 && <><button className="story-viewer-prev" onClick={() => move(-1)} aria-label="上一张">‹</button><button className="story-viewer-next" onClick={() => move(1)} aria-label="下一张">›</button></>}
-    </div><p className="story-viewer-tip" role={downloadState === 'error' ? 'alert' : undefined}>{downloadState === 'error' ? '图片下载失败，请重试「保存图片」。' : video ? '点击播放 · Esc 关闭' : '← → 或左右滑动切换 · Esc 关闭'}</p>
+    </div>{!video && items.length > 1 && <div className="story-viewer-thumbs" aria-label="选择图片">{items.map((slide, i) => <button key={`${slide.image}-${i}`} onClick={() => onChange(i)} aria-label={`第${i + 1}张`} aria-pressed={i === index}><img src={slide.thumb || slide.image} alt="" loading="lazy" /></button>)}</div>}<p className="story-viewer-tip" role={downloadState === 'error' ? 'alert' : undefined}>{downloadState === 'error' ? '图片下载失败，请重试「保存图片」。' : video ? '点击播放 · Esc 关闭' : '← → 或左右滑动切换 · Esc 关闭'}</p>
   </dialog>;
 }

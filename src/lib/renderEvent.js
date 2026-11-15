@@ -52,7 +52,7 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   const sortedAssets = selection.sorted;
   const activity = sortedAssets.map((asset, index) => imageItem(record, asset, index, 'activity'));
   const homeActivity = selection.highlights.map((asset, index) => imageItem(record, asset, index, 'home'));
-  const caseItems = (record.cases || []).sort((a, b) => scoreOf(b) - scoreOf(a) || a.name.localeCompare(b.name, 'zh-CN')).map((asset, index) => {
+  const caseItems = [...(record.cases || [])].sort((a, b) => scoreOf(b) - scoreOf(a) || a.name.localeCompare(b.name, 'zh-CN')).map((asset, index) => {
     const normalizedAsset = { ...asset, path: websiteAssetPath(asset.path) };
     return { ...imageItem(record, normalizedAsset, index, 'case'), path: normalizedAsset.path, title: legacyCaseTitle(asset, index), description: asset.description || '活动成员作品', href: asset.href, readme: asset.readme };
   });
@@ -71,15 +71,34 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   const folderCases = cases;
   const homepageCases = folderCases.filter((item) => Number.isInteger(item.homeOrder)).sort((a, b) => a.homeOrder - b.homeOrder);
   const featuredCases = homepageCases.length ? homepageCases : folderCases;
-  let productionGallery = folderCases.length ? folderCases.map((item, index) => ({ id: `${record.id}-case-gallery-${index}`, image: mediaUrl(record.id, item.path), path: item.path, alt: item.title, caption: item.title, title: item.title, href: item.href, readme: item.readme, position: index })) : [];
+  const caseSlides = (item, index) => {
+    const screenshotFolder = item.path?.includes('/截图/') ? item.path.slice(0, item.path.indexOf('/截图/') + 4) : '';
+    const archivedPaths = screenshotFolder ? assets.filter((asset) => asset.path.startsWith(screenshotFolder) && /\.(jpg|jpeg|png|webp|gif)$/i.test(asset.path))
+      .sort((a, b) => scoreOf(b) - scoreOf(a) || a.path.localeCompare(b.path, 'zh-CN')).map((asset) => asset.path) : [];
+    const paths = [...new Set([item.path, ...(item.imagePaths || archivedPaths)].filter(Boolean))];
+    const caseId = item.folder || item.path || `case-${index}`;
+    const base = { caseId, alt: item.title, caption: item.title, title: item.title, href: item.href, readme: item.readme };
+    const slides = paths.filter((p) => mediaUrl(record.id, p)).map((p, n) => ({ ...base,
+      id: `${record.id}-case-${index}-${n}`, image: mediaUrl(record.id, p), path: p, position: n }));
+    return slides.length ? slides : item.href ? [{ ...base, id: `${record.id}-case-${index}`, image: '', path: item.path || '', position: 0 }] : [];
+  };
+  const folderSlides = folderCases.flatMap(caseSlides);
+  const coveredPaths = new Set(folderSlides.map((item) => item.path));
+  // Keep legacy works when a new folder-based case is appended to an old activity.
+  let productionGallery = [...folderSlides, ...caseItems.filter((item) => !coveredPaths.has(item.path))];
+  const productionVideos = folderCases.flatMap((item, index) => (item.videos || []).map((video, n) => ({
+    id: `${record.id}-work-video-${index}-${n}`, title: video.title || item.title,
+    src: mediaUrl(record.id, websiteAssetPath(video.path)),
+    poster: video.posterPath ? mediaUrl(record.id, websiteAssetPath(video.posterPath)) : '',
+  }))).filter((video) => video.src);
   if (agentCatalog) {
     productions = agentCatalog.slice(0, 7);
     productionGallery = agentCatalog;
   }
-  if (folderCases.length) productions = featuredCases.slice(0, 7).map((item, index) => ({ id: `${record.id}-case-${index}`, image: mediaUrl(record.id, item.path), alt: item.title, caption: item.title, title: item.title, href: item.href, position: index }));
+  if (folderCases.length) productions = featuredCases.slice(0, 7).flatMap((item, index) => caseSlides(item, index).slice(0, 1));
   if (aichongCases?.length) productions = aichongCases.slice(0, 7).map((item, index) => ({ id: `${record.id}-case-${index}`, image: mediaUrl(record.id, item.path), alt: item.title, caption: item.title, title: item.title, href: item.href, position: index }));
   const media = social.map((item, index) => ({ id: `${record.id}-social-${index}`, type: 'news', label: item.label, href: item.href }));
-  const detail = { title: record.title, date: fullDateLabel(record.date), city: record.place, summary: record.summary || `${record.title}活动资料与成员作品归档。`, highlights: homeActivity.length ? homeActivity : activity.slice(0, 5), gallery: activity, productions, productionGallery: caseItems, media, videos, productionVideos: [] };
+  const detail = { title: record.title, date: fullDateLabel(record.date), city: record.place, summary: record.summary || `${record.title}活动资料与成员作品归档。`, highlights: homeActivity.length ? homeActivity : activity.slice(0, 5), gallery: activity, productions, productionGallery: caseItems, media, videos, productionVideos, ...(record.presentation ? { presentation: record.presentation } : {}) };
   detail.productionGallery = productionGallery;
   // id 用于查云端媒体；folder 才是唯一标识（素材库里存在同一 id 的副本文件夹，
   // 只拿 id 当 React key 会撞车，列表在切换筛选时可能渲染错乱）。

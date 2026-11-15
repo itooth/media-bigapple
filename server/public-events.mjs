@@ -10,7 +10,7 @@ export function catalogEvent(event) {
     detail: {
       ...pick(event.detail || {}, ['title', 'city']),
       productionGallery: (event.detail?.productionGallery || []).map((item) => pick(item,
-        ['id', 'path', 'title', 'alt', 'image', 'href', 'description', 'readme', 'position'])),
+        ['id', 'caseId', 'path', 'title', 'alt', 'image', 'href', 'description', 'readme', 'position'])),
     },
   };
 }

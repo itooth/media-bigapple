@@ -163,6 +163,8 @@ def check_cases(activity_root, media_map):
         if case_intro(case_dir) in PLACEHOLDER_INTRO:
             problems.append(f"案例「{title}」的说明.md 里「案例简介」为空或「待补充」，请向实习生要一句作品介绍")
         images = case_images(case_dir)
+        if not images and any(p.is_file() and p.suffix.lower() in VIDEO_SUFFIXES and p.relative_to(activity_root).as_posix() in ready for p in (case_dir / "视频").rglob("*")):
+            continue
         if not images:
             problems.append(f"案例「{title}」没有主图，网站不会显示（只有链接没有图的案例要先取帧并登记截图）")
             continue
@@ -323,10 +325,10 @@ def index_entries(repo, activity_id):
 def expected_counts(media_map, activity_root):
     ready = selected_website_ready_media(media_map)
     photos = [m for m in ready if m["originalPath"].startswith("01_活动照片/")]
-    gallery = [m for m in photos if Path(m["originalPath"]).suffix.lower() in IMAGE_SUFFIXES]
+    gallery = [m for m in photos if Path(m["originalPath"]).suffix.lower() in IMAGE_SUFFIXES and "视频封面" not in Path(m["originalPath"]).parts and ".poster." not in m["originalPath"]]
     videos = [m for m in photos if Path(m["originalPath"]).suffix.lower() in VIDEO_SUFFIXES]
     cases = [case_title(d.name) for d in case_directories(activity_root) if CASE_DIR_PATTERN.match(d.name)]
-    return {"gallery": len(gallery), "videos": len(videos), "cases": cases}
+    return {"gallery": len(gallery), "videos": len(videos), "cases": cases, "videoOnly": [case_title(d.name) for d in case_directories(activity_root) if not case_images(d) and (d / "视频").is_dir()], "workVideos": sum(Path(m["originalPath"]).suffix.lower() in VIDEO_SUFFIXES and m["originalPath"].startswith("02_案例/") for m in ready)}
 
 
 def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None, index_id=None):
@@ -358,19 +360,24 @@ def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None
                 problems.append(f"活动照片 gallery 有 {len(detail.get('gallery', []))} 张，归档里选中的是 {expected['gallery']} 张")
             if len(detail.get("videos", [])) != expected["videos"]:
                 problems.append(f"活动视频 videos 有 {len(detail.get('videos', []))} 个，归档里选中的是 {expected['videos']} 个")
+        if not dry_run and len(detail.get("productionVideos", [])) != expected.get("workVideos", 0):
+            problems.append("作品视频数量与归档不一致")
         has_image = {}
         for key in ("productions", "productionGallery"):
             for item in detail.get(key, []):
                 title = item.get("title") or item.get("caption")
                 has_image[title] = has_image.get(title, False) or bool(item.get("image"))
+        video_only = set(expected.get("videoOnly", []))
         for title in expected["cases"]:
+            if title in video_only:
+                continue
             if title not in has_image:
                 problems.append(f"案例「{title}」没有出现在 productions / productionGallery（网站丢弃了它）")
             elif not has_image[title] and not dry_run:
                 problems.append(f"案例「{title}」没有图片 url")
     if expected is not None and index_id:
         photos = [e for e in index_entries(repo, index_id) if e["path"].startswith("01_活动照片/")]
-        index_images = [e for e in photos if Path(e["path"]).suffix.lower() in IMAGE_SUFFIXES]
+        index_images = [e for e in photos if Path(e["path"]).suffix.lower() in IMAGE_SUFFIXES and "视频封面" not in Path(e["path"]).parts and ".poster." not in e["path"]]
         index_videos = [e for e in photos if Path(e["path"]).suffix.lower() in VIDEO_SUFFIXES]
         if len(index_images) != expected["gallery"]:
             problems.append(f"媒体索引里活动照片 {len(index_images)} 张，归档里选中的是 {expected['gallery']} 张")

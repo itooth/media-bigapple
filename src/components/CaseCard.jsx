@@ -7,6 +7,7 @@ export default function CaseCard({ item, onOpen }) {
     <>
       <span className="event-image-wrap">
         <img src={item.image} alt={item.alt || item.title} loading="lazy" />
+        {item.slides?.length > 1 && <span className="case-image-count">▧ {item.slides.length}</span>}
         <span className="event-open" aria-hidden="true"><ArrowUpRight /></span>
       </span>
       <span className="event-copy">

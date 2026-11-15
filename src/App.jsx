@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import EventDetail from './components/EventDetail.jsx';
 import EventGallery from './components/EventGallery.jsx';
 import Header from './components/Header.jsx';
-import Lightbox from './components/Lightbox.jsx';
+import StoryViewer from './components/StoryViewer.jsx';
 import MonthSection from './components/MonthSection.jsx';
 import SearchPanel from './components/SearchPanel.jsx';
 import useRoute from './hooks/useRoute.js';
@@ -198,8 +198,7 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
       window.open(item.href, '_blank', 'noopener,noreferrer');
       return;
     }
-    // 没有链接的案例：只做封面预览，不进任何详情页。
-    setCasePreview({ items: [{ image: item.image, alt: item.alt || item.title, caption: `${item.title} · ${item.eventTitle}` }], index: 0 });
+    setCasePreview({ items: item.slides?.length ? item.slides : [{ image: item.image, alt: item.alt || item.title, caption: item.title }], label: `${item.title} · ${item.eventTitle}`, index: 0 });
   };
 
   if (loading) return <>
@@ -315,7 +314,8 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
       ) : null}
 
       {casePreview ? (
-        <Lightbox
+        <StoryViewer
+          label={casePreview.label}
           items={casePreview.items}
           index={casePreview.index}
           onChange={(index) => setCasePreview((current) => ({ ...current, index }))}

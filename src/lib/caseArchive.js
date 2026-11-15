@@ -60,10 +60,19 @@ export function buildCaseItems(events = []) {
   const items = [];
   for (const event of events) {
     const gallery = event.detail?.productionGallery || [];
+    const grouped = new Map();
     gallery.forEach((item, index) => {
       if (!item?.image) return;
-      items.push({
-        key: `${event.uid || event.id}-${item.id || item.path || index}`,
+      const groupKey = item.caseId || item.id || item.path || index;
+      const slide = { image: item.image, alt: item.alt || item.title, caption: item.title };
+      if (grouped.has(groupKey)) {
+        const group = grouped.get(groupKey);
+        if (!group.slides.some(s => s.image === item.image)) group.slides.push(slide);
+        return;
+      }
+      const entry = {
+        key: `${event.uid || event.id}-${groupKey}`,
+        slides: [slide],
         title: item.title || item.alt || '未命名案例',
         image: item.image,
         alt: item.title || item.alt || '',
@@ -77,7 +86,9 @@ export function buildCaseItems(events = []) {
         eventDate: event.sourceDate || '',
         eventCity: event.detail?.city || '',
         tags: Array.isArray(event.tags) ? event.tags : [],
-      });
+      };
+      grouped.set(groupKey, entry);
+      items.push(entry);
     });
   }
   // 同月里按活动日期倒序；日期相同保持活动内原顺序（Array#sort 稳定）。

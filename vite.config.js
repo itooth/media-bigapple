@@ -230,7 +230,7 @@ function indexedMediaPath(activityFolder, relativePath) {
   if (exact) return exact;
   const wantedName = path.basename(wanted).replace(/\.[^.]+$/u, '');
   const candidates = [...indexPaths]
-    .filter((key) => key.startsWith(`${id}/02_案例/`))
+    .filter((key) => key.startsWith(`${id}/${path.posix.dirname(normalized)}/`))
     .map((key) => key.slice(id.length + 1))
     .filter((candidate) => {
       const candidateName = path.basename(candidate).replace(/\.[^.]+$/u, '');
@@ -270,8 +270,18 @@ function readCaseMedia(activityFolder) {
         .map((name) => `02_案例/${folder}/截图/${name}`)
         .map((candidate) => indexedMediaPath(activityFolder, candidate))
         .find(Boolean) || null;
-      return (relativePath || href)
-        ? { folder, title, homeOrder: homeMatch ? Number(homeMatch[1]) : null, score: Number(folder.match(/(\d{5})_/)?.[1] || (homeMatch ? 10000 - Number(homeMatch[1]) : 0)), href, path: relativePath || '', readme }
+      const imagePaths = [...new Set([relativePath, ...images
+        .sort((a, b) => Number(b.match(/^(\d{5})_/)?.[1] || 0) - Number(a.match(/^(\d{5})_/)?.[1] || 0) || a.localeCompare(b, 'zh-CN'))
+        .map((name) => indexedMediaPath(activityFolder, `02_案例/${folder}/截图/${name}`))].filter(Boolean))];
+      const videoRoot = path.join(directory, '视频');
+      const videos = (fs.existsSync(videoRoot) ? discoverFiles(videoRoot) : [])
+        .filter((name) => /\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(name))
+        .map((name) => ({ path: indexedMediaPath(activityFolder, `02_案例/${folder}/视频/${name}`),
+          title: name.replace(/\.[^.]+$/, '').replace(/^\d{5}_/, ''),
+          posterPath: indexedMediaPath(activityFolder, `02_案例/${folder}/视频/${name.replace(/\.[^.]+$/, '')}.poster.jpg`) }))
+        .filter((item) => item.path);
+      return (relativePath || href || videos.length)
+        ? { folder, title, homeOrder: homeMatch ? Number(homeMatch[1]) : null, score: Number(folder.match(/(\d{5})_/)?.[1] || (homeMatch ? 10000 - Number(homeMatch[1]) : 0)), href, path: relativePath || '', readme, imagePaths, videos }
         : null;
     }).filter(Boolean);
 
@@ -554,6 +564,7 @@ function readActivityManifests() {
         tags: Array.isArray(manifest.tags) ? manifest.tags : [],
         ...(manifest.slug !== undefined ? { slug: manifest.slug } : {}),
         videos,
+        ...(manifest.presentation ? { presentation: manifest.presentation } : {}),
         ...(Object.keys(presentation.videoPosters).length ? { videoPosters: presentation.videoPosters } : {}),
         ...(Object.keys(presentation.videoTitles).length ? { videoTitles: presentation.videoTitles } : {}),
       });
