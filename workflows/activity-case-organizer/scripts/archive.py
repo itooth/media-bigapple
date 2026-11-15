@@ -107,7 +107,7 @@ def mirror(activity, website_root):
         if rel in ('manifest.json','媒体映射.json'): continue
         sha=digest(p); assets.append({'path':rel,'name':p.name,'type':p.suffix.lower()[1:] or 'file','bytes':p.stat().st_size,'sha256':sha})
         parts=Path(rel).parts
-        display=parts[0]=='01_活动照片' or (parts[0]=='02_案例' and len(parts)>3 and parts[2]=='截图') or (parts[0]=='03_社交媒体' and len(parts)>2 and parts[1]=='截图')
+        display=parts[0]=='01_活动照片' or (parts[0]=='02_案例' and len(parts)>3 and parts[2] in ('截图','视频')) or (parts[0]=='03_社交媒体' and len(parts)>2 and parts[1]=='截图')
         if not display or p.suffix.lower() not in IMAGE|VIDEO: continue
         prior=by_path.get(rel)
         if not prior:
