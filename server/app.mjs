@@ -141,6 +141,13 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         return send(res, 200, searchArchive(store.events(), siteOrigin(req), (searchParams.get('q') || '').slice(0, 200), agentNotes, limit));
       }
       const activityMatch = pathname.match(/^\/api\/activities\/([^/]+)$/);
+      // Team-only read of one activity's stored source, so tools can edit it and write it back.
+      if (activityMatch && method === 'GET') {
+        await requireTeamMember(req);
+        const source = store.source(decodeURIComponent(activityMatch[1]));
+        if (!source) throw failure(404, '活动不存在');
+        return send(res, 200, { source });
+      }
       if (activityMatch && method === 'PUT') {
         const uid = decodeURIComponent(activityMatch[1]);
         const actor = await requireTeamMember(req);

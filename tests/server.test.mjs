@@ -227,6 +227,15 @@ test('team members add, update and append to one activity; it renders on read an
   assert.deepEqual(site.events[0].detail.gallery.map((g) => g.caption), ['封面_合照', '签到', '讲解']);
   assert.equal(site.events[0].image, 'https://media.bigapple.app/10000_封面_合照.jpg');
   assert.deepEqual(site.events[0].detail.videos.map((v) => v.title), ['作品视频_演示']);
+  // Team members read back the stored source (what PUT expects); outsiders cannot.
+  assert.equal((await f.request(url, { headers: { 'x-bigapple-publisher-id': 'pub_outsider', Authorization: 'Bearer x' } })).status, 403);
+  assert.equal((await f.request(url)).status, 401);
+  assert.equal((await f.request('/api/activities/missing', { headers: teamHeaders })).status, 404);
+  const stored = await (await f.request(url, { headers: teamHeaders })).json();
+  assert.equal(stored.source.uid, newSource.uid);
+  assert.equal(stored.source.record.title, '新活动改名');
+  assert.deepEqual(stored.source.social.map((s) => s.href), ['https://example.test/report']);
+  assert.equal((await put(stored.source)).status, 200);
 });
 
 test('legacy rendered rows cannot be appended to until replaced with a full update', async (t) => {
