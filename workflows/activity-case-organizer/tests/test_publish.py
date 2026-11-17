@@ -247,6 +247,12 @@ class CaseAndIdChecksTests(unittest.TestCase):
             publish_module.check_activity_id_format({'id': '3f2b8c9e-1111-4222-8333-444455556666'})
         publish_module.check_activity_id_format({'id': '10-28-yiwu-ai-class'})
 
+    def test_existing_legacy_id_on_site_is_accepted(self):
+        site = [{'id': 'activity-27', 'folder': '2026-08-07_宿州'}]
+        publish_module.check_activity_id_format({'id': 'activity-27'}, site, '2026-08-07_宿州')
+        with self.assertRaises(publish_module.PublishError):
+            publish_module.check_activity_id_format({'id': 'activity-27'}, site, '2026-08-07_别的活动')
+
     def test_activity_id_conflict_with_head_snapshot(self):
         snapshot = [{'id': '10-28-yiwu-ai-class', 'folder': '2026-10-28_别的活动'}]
         with self.assertRaises(publish_module.PublishError) as ctx:
@@ -303,6 +309,46 @@ class RunStreamingTests(unittest.TestCase):
         with self.assertRaises(publish_module.PublishError) as ctx:
             publish_module.run_streaming(['false'], '.', None, 'upload-media.mjs')
         self.assertIn('失败', str(ctx.exception))
+
+
+class SiteWriteTests(unittest.TestCase):
+    """写入服务器：测试图床只配测试站，正式图床只配正式站；只发这一场。"""
+
+    def test_staging_media_goes_to_staging_site_only(self):
+        self.assertEqual(publish_module.site_for_app('media-staging'), 'https://media-staging.bigapple.work')
+        self.assertEqual(publish_module.site_for_app(publish_module.DEFAULT_APP), 'https://media.bigapple.work')
+
+    def test_write_sends_one_activity_with_deployment_identity(self):
+        import http.server, threading
+        seen = {}
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_PUT(self):
+                seen.setdefault('methods', []).append(self.command)
+                seen['path'] = self.path
+                seen['auth'] = self.headers['Authorization']
+                seen.setdefault('bodies', []).append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+                body = json.dumps({'created': True, 'activities': 47}).encode()
+                self.send_response(201); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+
+            do_PATCH = do_PUT
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        source = {'uid': '2026-10-29_新活动', 'record': {'id': '10-29-new'}, 'assets': [{'path': '01_活动照片/a.jpg'}], 'cases': []}
+        headers = {'x-bigapple-publisher-id': 'pub_x', 'Authorization': 'Bearer badt_x', 'x-bigapple-skill-id': 's', 'x-bigapple-skill-version': '1'}
+        with mock.patch.object(publish_module, 'deployment_headers', return_value=headers):
+            result = publish_module.write_activity(f'http://127.0.0.1:{server.server_port}', source)
+            publish_module.write_activity(f'http://127.0.0.1:{server.server_port}', source, append=True)
+        self.assertEqual(result['activities'], 47)
+        self.assertEqual(seen['auth'], 'Bearer badt_x')
+        self.assertEqual(seen['methods'], ['PUT', 'PATCH'])
+        self.assertEqual(seen['bodies'], [{'source': source}, {'assets': source['assets'], 'cases': [], 'videos': []}])
+        self.assertTrue(seen['path'].startswith('/api/activities/2026-10-29_'))
 
 
 if __name__ == '__main__':

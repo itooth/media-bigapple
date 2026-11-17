@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
-"""Durable intake plan, copy-only organization, incremental media mirror and verifiable backup."""
-import argparse, copy, datetime, json, os, re, shutil, subprocess, tarfile, tempfile, uuid
-from pathlib import Path
-from catalog import read, write, digest, inside
+"""Durable intake plan, copy-only organization and incremental media mirror."""
+import argparse, copy, datetime, hashlib, json, os, re, shutil, subprocess, tempfile, uuid
+from pathlib import Path, PurePosixPath
 IMAGE={'.jpg','.jpeg','.png','.webp','.heic','.tif','.tiff','.gif'}
 VIDEO={'.mp4','.mov','.m4v','.webm','.mkv'}
 IGNORED={'.DS_Store','__MACOSX','.git','__pycache__'}
 ROOTS={'01_活动照片','02_案例','03_社交媒体','其他'}
 VERSION='web-v1-pillow-2048-q86-ffmpeg-h264-crf24'
+def read(p): return json.loads(Path(p).read_text())
+def digest(p):
+    with Path(p).open('rb') as f: return hashlib.file_digest(f, 'sha256').hexdigest()
+def write(p, value):
+    p=Path(p); p.parent.mkdir(parents=True,exist_ok=True)
+    tmp=p.with_suffix(p.suffix+'.tmp'); tmp.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n'); tmp.replace(p)
+def inside(root, rel):
+    p=PurePosixPath(rel)
+    if not rel or p.is_absolute() or '..' in p.parts or '\\' in rel: raise ValueError('非法相对路径: '+rel)
+    target=Path(root).joinpath(*p.parts)
+    if target.is_symlink() or not target.resolve().is_relative_to(Path(root).resolve()): raise ValueError('路径越界: '+rel)
+    return target
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
 def files(root):
     for base,dirs,names in os.walk(root,followlinks=False):
@@ -233,33 +244,9 @@ def mirror(activity, website_root):
     write(root/'manifest.json',manifest); write(root/'媒体映射.json',previous)
     print(json.dumps({'assets':len(assets),'media':len(media),'encoded':encoded,'pendingOrFailed':failures},ensure_ascii=False))
 
-def backup(activity, output):
-    root=Path(activity).resolve(); output=Path(output).resolve()
-    if output.is_relative_to(root) or output.exists(): raise ValueError('备份路径必须在活动外且不存在')
-    output.parent.mkdir(parents=True,exist_ok=True)
-    snapshot={p.relative_to(root).as_posix():digest(p) for p in files(root)}
-    with tarfile.open(output,'w:gz') as t:
-        for rel in sorted(snapshot): t.add(root/rel,arcname=rel,recursive=False)
-    with tempfile.TemporaryDirectory() as tmp:
-        restore(output,Path(tmp)/'check',quiet=True)
-        actual={p.relative_to(Path(tmp)/'check').as_posix():digest(p) for p in files(Path(tmp)/'check')}
-        if actual!=snapshot: raise ValueError('备份读回校验失败')
-    receipt={'sha256':digest(output),'bytes':output.stat().st_size,'files':snapshot,'verifiedAt':now()}
-    write(str(output)+'.receipt.json',receipt); print('备份已完整读回并校验: '+str(output))
-
-def restore(archive, destination, quiet=False):
-    dest=Path(destination)
-    if dest.exists(): raise ValueError('恢复目录必须不存在，避免覆盖现有素材')
-    with tarfile.open(archive,'r:gz') as t:
-        for member in t.getmembers():
-            inside(dest,member.name)
-            if not member.isfile(): raise ValueError('备份只允许普通文件')
-        dest.mkdir(parents=True); t.extractall(dest,filter='data')
-    if not quiet: print('已恢复到新目录: '+str(dest))
-
 def main():
     p=argparse.ArgumentParser(description=__doc__); sub=p.add_subparsers(dest='cmd',required=True)
-    for name,second in [('scan','plan'),('apply','activity'),('mirror','website_root'),('backup','output'),('restore','destination')]:
+    for name,second in [('scan','plan'),('apply','activity'),('mirror','website_root')]:
         q=sub.add_parser(name); q.add_argument('source'); q.add_argument(second)
         if name=='scan': q.add_argument('--archive',action='append',dest='archives',help='已整理活动目录，复用其中已审核的判断')
     a=p.parse_args(); args=vars(a); cmd=args.pop('cmd'); values=list(args.values()); globals()[cmd](*values)

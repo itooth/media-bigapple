@@ -5,7 +5,7 @@ chosen frame into 02_案例/<案例>/截图/, upserts the linkReview record in �
 marks the screenshot as reviewed (evidence required) in 其他/整理记录.json, which
 `archive.py mirror` reads for new screenshots. If the media is already in 媒体映射.json its
 review is updated too. A failed link can be registered with --status failed --error.
-`archive.py mirror` keeps linkReview, so run mirror and catalog afterwards.
+`archive.py mirror` keeps linkReview, so run mirror afterwards.
 
 Usage:
     python3 scripts/register_link.py /活动目录 --case 首页02_新安校园 --url https://x/ \
@@ -178,7 +178,7 @@ def main(argv=None):
                           arguments.source, arguments.reason)
     except (ValueError, OSError) as exception:
         parser.exit(2, 'register_link: ' + str(exception) + '\n')
-    print(json.dumps({'registered': record, 'next': 'archive.py mirror, then catalog.py'}, ensure_ascii=False, indent=2))
+    print(json.dumps({'registered': record, 'next': 'archive.py mirror'}, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""把一份实习生归档发布到 media-bigapple 网站仓库的线上数据。
+"""把一场活动发布到案例网站服务器（测试站或正式站）。
 
-前提：归档已 mirror 过（存在媒体映射.json），且已用 release_gate.py backup 记录原件在团队共享硬盘的位置
-（预览已确认 + 原件已有共享硬盘备份）。本脚本只读归档、只在临时目录操作，
-不修改归档本身；对网站仓库会写 src/data 和跑一次 npm run build（可用 --dry-run
-让上传不写云端）。脚本本身不 commit、不 push、不部署。
+服务器数据库是活动数据的唯一真源（存每场活动的原始记录，打开页面时按当前皮肤渲染）；
+网站代码（GitHub）只是皮肤和生成规则。本脚本：上传展示图到图床 → 用本地网站工程生成这一场的
+原始记录（dist-server/sources.json）→ 只把这一场写入服务器，用本机 BigApple 部署身份，
+服务器按团队部署白名单放行：
+  整场（默认）PUT /api/activities/<uid>：整场替换，归档必须是这场活动完整的整理目录
+  追加（--append）PATCH /api/activities/<uid>：只把这批照片/案例并进服务器上已有的活动
+不部署、不 commit、不 push；网站工程里 src/data 的改动是生成过程的副产物，不用提交。
+
+前提：归档已 mirror 过（存在媒体映射.json），且已用 release_gate.py backup 记录原件已复制到团队共享硬盘。
 
 用法：
-  publish.py <活动归档目录> --repo <网站仓库> --web-root <mirror 输出根>
-             [--app bigapple-onboarding-course] [--dry-run]
+  publish.py <活动归档目录> --repo <网站工程> --web-root <mirror 输出根> --app media-staging   # 测试站
+  publish.py <活动归档目录> --repo <网站工程> --web-root <mirror 输出根>                        # 正式站
+  加 --append：给已有活动补照片/案例，归档只需包含新的这批（manifest 的 id、目录名与原活动一致）
+  加 --dry-run：不上传图、不写服务器
 """
 import argparse
 import hashlib
@@ -18,19 +25,29 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from release_gate import require_backup  # noqa: E402
+import checks  # noqa: E402  唯一一套记录检查，audit.py / repair.py 也用它
 
 REQUIRED_MANIFEST_FIELDS = ("title", "date", "id")
 DEFAULT_APP = "bigapple-onboarding-course"
+# 图床 app → 写入哪个网站。测试图床的图只给测试站用，正式站必须用正式图床。
+SITE_FOR_APP = {"media-staging": "https://media-staging.bigapple.work"}
+PRODUCTION_SITE = "https://media.bigapple.work"
+DEPLOY_SKILL_ID = "sk_405931e4-67f2-494f-aaca-8081885f54e5"
 ACTIVITY_ID_PATTERN = re.compile(r"^\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 CASE_DIR_PATTERN = re.compile(r"^(?:首页\d{2}_.+|\d{5}_.+)")
 COLLECTION_DIRS = ("案例集合材料", "案例素材", "原案例素材")
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
 PLACEHOLDER_INTRO = {"", "待补充", "待确认"}
+SUMMARY_MAX = checks.SUMMARY_MAX
+TEMPLATE_SUMMARY = checks.TEMPLATE_SUMMARY
 
 
 def read_json(path):
@@ -87,23 +104,84 @@ def case_title(folder_name):
     return re.sub(r"^\d{5}_", "", re.sub(r"^首页\d{2}_", "", folder_name)).strip()
 
 
-def load_head_snapshot(repo):
-    """基线 = 仓库 HEAD 里 siteContent.snapshot.json 的 activityManifests（不看工作区里可能被干跑改过的文件）。"""
-    result = subprocess.run(
-        ["git", "show", "HEAD:src/data/siteContent.snapshot.json"],
-        cwd=repo, capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        raise PublishError("读不到 HEAD 里的 src/data/siteContent.snapshot.json，无法确定构建前活动数：\n" + result.stderr)
+def site_for_app(app):
+    return SITE_FOR_APP.get(app, PRODUCTION_SITE)
+
+
+def load_site_activities(site):
+    """服务器上现有活动，转成 check_activity_id_conflict 用的 {id, folder}（folder 即 uid）。"""
     try:
-        return json.loads(result.stdout)["activityManifests"]
-    except (json.JSONDecodeError, KeyError) as exc:
-        raise PublishError(f"HEAD 里的 siteContent.snapshot.json 格式不对：{exc}") from exc
+        with urllib.request.urlopen(f"{site}/api/site", timeout=60) as response:
+            events = json.load(response)["events"]
+    except (urllib.error.URLError, KeyError, json.JSONDecodeError) as exc:
+        raise PublishError(f"读不到 {site} 的现有活动，无法检查活动 id 冲突：{exc}") from exc
+    return [{"id": e.get("id"), "folder": e.get("uid")} for e in events]
 
 
-def check_activity_id_format(manifest):
+def deploy_skill_dir():
+    """APP 部署专员通常和本 Skill 装在同一个 skills 目录；网站工程在别处，所以由这里找好再传给 upload-media.mjs。"""
+    here = Path(__file__).resolve().parents[1]
+    for candidate in (os.environ.get("BIGAPPLE_DEPLOY_SKILL_DIR"), here.parent / "bigapple-deploy", Path.home() / ".claude" / "skills" / "bigapple-deploy"):
+        if candidate and (Path(candidate) / "bigapple" / "metadata.json").is_file():
+            return Path(candidate).resolve()
+    raise PublishError("找不到「APP 部署专员」Skill，请先在技能页安装它")
+
+
+def deploy_skill_version():
+    if os.environ.get("BIGAPPLE_SKILL_VERSION"):
+        return os.environ["BIGAPPLE_SKILL_VERSION"].strip()
+    return read_json(deploy_skill_dir() / "bigapple" / "metadata.json")["version"]
+
+
+def deployment_headers():
+    """本机 BigApple 部署身份（check_team_access.sh 会先生成并登记它）。"""
+    data_dir = Path(os.environ.get("CLAUDE_GUI_DATA_DIR") or Path.home() / ".bigapple")
+    credential_file = Path(os.environ.get("BIGAPPLE_DEPLOY_CREDENTIAL_FILE") or data_dir / "deployment-credential.json")
+    if not credential_file.is_file():
+        raise PublishError("找不到本机部署身份，请先运行 check_team_access.sh 完成团队白名单检查")
+    credential = read_json(credential_file)
+    return {
+        "x-bigapple-publisher-id": credential["publisherId"],
+        "Authorization": f"Bearer {credential['token']}",
+        "x-bigapple-skill-id": DEPLOY_SKILL_ID,
+        "x-bigapple-skill-version": deploy_skill_version(),
+    }
+
+
+def built_source(repo, activity_id):
+    sources = json.loads((Path(repo) / "dist-server" / "sources.json").read_text(encoding="utf-8"))
+    matched = [e for e in sources if e.get("uid") == activity_id]
+    if len(matched) != 1:
+        raise PublishError(f"构建产物里应恰好有一场 uid={activity_id} 的活动原始记录，实际 {len(matched)} 场")
+    return matched[0]
+
+
+def write_activity(site, source, append=False):
+    """只写这一场；服务器保留旧版本，其他活动不受影响。append 只发这批照片和案例。"""
+    payload = {"assets": source.get("assets", []), "cases": source.get("cases", []), "videos": source.get("record", {}).get("videos", [])} if append else {"source": source}
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{site}/api/activities/{urllib.parse.quote(source['uid'], safe='')}",
+        data=body, method="PATCH" if append else "PUT", headers={**deployment_headers(), "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as exc:
+        try:
+            message = json.load(exc).get("error") or ""
+        except (json.JSONDecodeError, ValueError):
+            message = ""
+        raise PublishError(f"写入 {site} 失败（HTTP {exc.code}）：{message or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        raise PublishError(f"连不上 {site}：{exc.reason}。网络恢复后重跑即可，已传的图会跳过") from exc
+
+
+def check_activity_id_format(manifest, site_activities=(), folder_name=""):
+    """新活动的 id 必须合规；网站上同目录已有的旧 id（如 activity-27）照用，不让补素材卡住。"""
     activity_id = str(manifest.get("id", ""))
-    if not ACTIVITY_ID_PATTERN.match(activity_id):
+    existing = any(e.get("id") == activity_id and e.get("folder") == folder_name for e in site_activities)
+    if not existing and not ACTIVITY_ID_PATTERN.match(activity_id):
         raise PublishError(
             f"活动 id「{activity_id}」格式不对。要 MM-DD-英文或拼音短名，如 10-28-yiwu-ai-class，不能是随机 UUID；"
             "请在 manifest.json 里改 id，并把 uid 设为活动目录名。"
@@ -182,6 +260,46 @@ def check_cases(activity_root, media_map):
         raise PublishError("案例检查没通过：\n- " + "\n- ".join(problems))
 
 
+def check_summary(manifest):
+    """活动简介是网站上给人看的一句话：不超过 SUMMARY_MAX 字，不能是自动生成的模板句。"""
+    summary = str(manifest.get("summary") or "").strip()
+    if not summary or TEMPLATE_SUMMARY.search(summary):
+        raise PublishError("manifest.json 的 summary 为空或是模板句。请向实习生要一句话简介（这场活动做了什么），"
+                           f"不超过 {SUMMARY_MAX} 字")
+    if len(summary) > SUMMARY_MAX:
+        raise PublishError(f"manifest.json 的 summary 有 {len(summary)} 字，网站上限 {SUMMARY_MAX} 字：「{summary}」。"
+                           "只留一句做了什么，细节写进案例的「详细说明」")
+
+
+def poster_path_for(video_rel):
+    """和 video_posters.py 同一约定：活动视频封面在 01_活动照片/视频封面/，案例视频封面在同目录。"""
+    v = Path(video_rel)
+    if v.parts[0] == "01_活动照片":
+        return (Path("01_活动照片") / "视频封面" / (v.stem + ".poster.jpg")).as_posix()
+    return v.with_name(v.stem + ".poster.jpg").as_posix()
+
+
+def check_videos(activity_root, manifest, media_map):
+    """每个上网页的视频都要有封面；作品视频要放进它的案例 02_案例/<案例>/视频/，不能混在活动视频里。"""
+    ready = {m["originalPath"] for m in selected_website_ready_media(media_map)}
+    declared = manifest.get("videoPosters") or {}
+    problems = []
+    for m in selected_website_ready_media(media_map):
+        rel = m["originalPath"]
+        if Path(rel).suffix.lower() not in VIDEO_SUFFIXES:
+            continue
+        if rel.startswith("01_活动照片/") and "作品视频" in Path(rel).name:
+            problems.append(f"{rel} 是作品视频，要放到对应案例的 02_案例/<案例>/视频/ 下（拿不准归属就问实习生）")
+            continue
+        poster = poster_path_for(rel)
+        if poster not in ready:
+            problems.append(f"{rel} 没有封面：跑 video_posters.py frames 生成 {poster}，再 archive.py mirror")
+        elif rel.startswith("01_活动照片/") and declared.get(rel) != poster:
+            problems.append(f"{rel} 的封面没写进 manifest.json 的 videoPosters（video_posters.py 会自动写）")
+    if problems:
+        raise PublishError("视频检查没通过：\n- " + "\n- ".join(problems))
+
+
 def check_similar_photos(activity_root, media_map):
     """archive.py scan 标出的相似连拍组：每组只能有一张进相册，除非写了 keepAll 理由。"""
     record = Path(activity_root) / "其他" / "整理记录.json"
@@ -215,21 +333,45 @@ def check_web_targets(media_map):
     return mismatched
 
 
-def run_preflight_checks(activity_root, manifest, media_map, snapshot_loader=None):
-    """snapshot_loader：无参函数，返回 HEAD snapshot 的 activityManifests；放到最后调用，前面的检查失败时不碰 git。"""
+def warn_or_raise(check, append, *args):
+    """追加模式：服务器上的旧问题只提示，由助手问使用者这次要不要顺手修；整场发布照拦。"""
+    try:
+        check(*args)
+    except PublishError as exc:
+        if not append:
+            raise
+        print("提示（追加不拦，请问使用者是否顺手修）：" + str(exc))
+
+
+def check_built_source(source, append=False):
+    """生成的原始记录过一遍 checks.py：和全站体检同一套规则。"""
+    issues = checks.check_source(source)
+    if not issues:
+        return []
+    message = "记录检查没通过（规则见 checks.py）：\n" + checks.format_issues(issues)
+    if append:
+        print("提示（追加不拦，请问使用者是否顺手修）：" + message)
+        return issues
+    raise PublishError(message)
+
+
+def run_preflight_checks(activity_root, manifest, media_map, snapshot_loader=None, append=False):
+    """snapshot_loader：无参函数，返回服务器现有活动的 {id, folder}；放到最后调用，前面的检查失败时不联网。"""
     check_manifest(manifest)
-    check_activity_id_format(manifest)
     folder_name = manifest.get("sourceFolder") or Path(activity_root).name
     check_media_ready(media_map)
     check_publish_confirmation(activity_root)
     check_cases(activity_root, media_map)
     check_similar_photos(activity_root, media_map)
+    warn_or_raise(check_summary, append, manifest)
+    warn_or_raise(check_videos, append, activity_root, manifest, media_map)
     transparent = check_web_targets(media_map)
     if transparent:
         print("提示：以下素材的展示副本是透明 PNG，网站按 .jpg 路径查找。发布时会改名为 .jpg 放进图床，浏览器一般仍能显示，请在测试站看一眼：")
         for path in transparent[:10]:
             print("  - " + path)
     snapshot_manifests = snapshot_loader() if snapshot_loader else []
+    check_activity_id_format(manifest, snapshot_manifests, folder_name)
     is_update = check_activity_id_conflict(manifest, snapshot_manifests, folder_name)
     return is_update, snapshot_manifests
 
@@ -292,10 +434,15 @@ def build_web_staging(media_map, web_root, staging_root, activity_folder_name):
 def run_streaming(cmd, repo, env, label):
     """子进程输出直接打到终端，不吞；非 0 退出就中文报错停止。"""
     sys.stdout.flush()
-    result = subprocess.run(cmd, cwd=repo, env=env)
+    result = subprocess.run(resolve_command(cmd), cwd=repo, env=env)
     if result.returncode != 0:
         raise PublishError(f"{label} 失败（退出码 {result.returncode}），原因见上方输出。")
     return result
+
+
+def resolve_command(cmd):
+    # Windows 上 npm 是 npm.cmd，subprocess 不经 shell 找不到裸名 "npm"；which 会按 PATHEXT 解析。
+    return [shutil.which(cmd[0]) or cmd[0], *cmd[1:]]
 
 
 def run_node(repo, script_args, env, dry_run_label=None):
@@ -315,7 +462,10 @@ def run_upload(repo, web_staging_root, activity_folder_name, app, dry_run):
     ]
     if dry_run:
         args.append("--dry-run")
-    return run_node(repo, args, env=os.environ.copy(), dry_run_label="upload-media.mjs")
+    env = os.environ.copy()
+    if not dry_run:
+        env["BIGAPPLE_DEPLOY_SKILL_DIR"] = str(deploy_skill_dir())
+    return run_node(repo, args, env=env, dry_run_label="upload-media.mjs")
 
 
 def run_build_index_and_build(repo, library_staging_root, web_staging_root):
@@ -345,13 +495,13 @@ def index_entries(repo, activity_id):
 def expected_counts(media_map, activity_root):
     ready = selected_website_ready_media(media_map)
     photos = [m for m in ready if m["originalPath"].startswith("01_活动照片/")]
-    gallery = [m for m in photos if Path(m["originalPath"]).suffix.lower() in IMAGE_SUFFIXES and "视频封面" not in Path(m["originalPath"]).parts and ".poster." not in m["originalPath"]]
+    gallery = [m for m in photos if Path(m["originalPath"]).suffix.lower() in IMAGE_SUFFIXES]
     videos = [m for m in photos if Path(m["originalPath"]).suffix.lower() in VIDEO_SUFFIXES]
     cases = [case_title(d.name) for d in case_directories(activity_root) if CASE_DIR_PATTERN.match(d.name)]
-    return {"gallery": len(gallery), "videos": len(videos), "cases": cases, "videoOnly": [case_title(d.name) for d in case_directories(activity_root) if not case_images(d) and (d / "视频").is_dir()], "workVideos": sum(Path(m["originalPath"]).suffix.lower() in VIDEO_SUFFIXES and m["originalPath"].startswith("02_案例/") for m in ready)}
+    return {"gallery": len(gallery), "videos": len(videos), "cases": cases}
 
 
-def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None, index_id=None):
+def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None, index_id=None, append=False):
     events_path = Path(repo) / "dist-server" / "events.json"
     if not events_path.exists():
         raise PublishError("构建完成但找不到 dist-server/events.json")
@@ -374,30 +524,25 @@ def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None
         if expected is None:
             continue
         if not dry_run:
-            if not event.get("image"):
+            if not event.get("image") and not append:  # 追加批次可以没有封面，封面留在服务器上
                 problems.append("活动封面 url 为空")
             if len(detail.get("gallery", [])) != expected["gallery"]:
                 problems.append(f"活动照片 gallery 有 {len(detail.get('gallery', []))} 张，归档里选中的是 {expected['gallery']} 张")
             if len(detail.get("videos", [])) != expected["videos"]:
                 problems.append(f"活动视频 videos 有 {len(detail.get('videos', []))} 个，归档里选中的是 {expected['videos']} 个")
-        if not dry_run and len(detail.get("productionVideos", [])) != expected.get("workVideos", 0):
-            problems.append("作品视频数量与归档不一致")
         has_image = {}
         for key in ("productions", "productionGallery"):
             for item in detail.get(key, []):
                 title = item.get("title") or item.get("caption")
                 has_image[title] = has_image.get(title, False) or bool(item.get("image"))
-        video_only = set(expected.get("videoOnly", []))
         for title in expected["cases"]:
-            if title in video_only:
-                continue
             if title not in has_image:
                 problems.append(f"案例「{title}」没有出现在 productions / productionGallery（网站丢弃了它）")
             elif not has_image[title] and not dry_run:
                 problems.append(f"案例「{title}」没有图片 url")
     if expected is not None and index_id:
         photos = [e for e in index_entries(repo, index_id) if e["path"].startswith("01_活动照片/")]
-        index_images = [e for e in photos if Path(e["path"]).suffix.lower() in IMAGE_SUFFIXES and "视频封面" not in Path(e["path"]).parts and ".poster." not in e["path"]]
+        index_images = [e for e in photos if Path(e["path"]).suffix.lower() in IMAGE_SUFFIXES]
         index_videos = [e for e in photos if Path(e["path"]).suffix.lower() in VIDEO_SUFFIXES]
         if len(index_images) != expected["gallery"]:
             problems.append(f"媒体索引里活动照片 {len(index_images)} 张，归档里选中的是 {expected['gallery']} 张")
@@ -412,15 +557,10 @@ def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None
 
 def run_tests(repo):
     sys.stdout.flush()
-    return subprocess.run(["npm", "test"], cwd=repo)
+    return subprocess.run(resolve_command(["npm", "test"]), cwd=repo)
 
 
-def git_diff_stat(repo):
-    result = subprocess.run(["git", "diff", "--stat"], cwd=repo, capture_output=True, text=True)
-    return result.stdout.strip()
-
-
-def publish(activity_root, repo, web_root, app, dry_run):
+def publish(activity_root, repo, web_root, app, dry_run, append=False):
     activity_root = Path(activity_root).resolve()
     repo = Path(repo).resolve()
     web_root = Path(web_root).resolve()
@@ -430,15 +570,14 @@ def publish(activity_root, repo, web_root, app, dry_run):
     media_map["_activity_root"] = str(activity_root)
 
     activity_folder_name = manifest.get("sourceFolder") or activity_root.name
-    is_update, snapshot_manifests = run_preflight_checks(
-        activity_root, manifest, media_map, lambda: load_head_snapshot(repo)
+    site = site_for_app(app)
+    is_update, _ = run_preflight_checks(
+        activity_root, manifest, media_map, lambda: load_site_activities(site), append
     )
 
     activity_id = manifest.get("uid") or manifest["id"]
-    # 基线 = HEAD 里 snapshot 的活动数；新活动 +1，已存在的同目录活动是更新，不加
-    # events.js 会过滤掉 id=04-2，构建产物的活动数要同样口径
-    previous_event_count = len([m for m in snapshot_manifests if m.get("id") != "04-2"])
-    expected_event_count = previous_event_count + (0 if is_update else 1)
+    if append and not is_update:
+        raise PublishError(f"{site} 上还没有这场活动（目录 {activity_folder_name}、id {manifest['id']}），不能追加。新活动去掉 --append 整场发布；补素材要让目录名和 id 与原活动一致。")
     expected = expected_counts(media_map, activity_root)
 
     import tempfile
@@ -458,28 +597,28 @@ def publish(activity_root, repo, web_root, app, dry_run):
         run_upload(repo, web_staging_root, activity_folder_name, app, dry_run)
         run_build_index_and_build(repo, library_staging_root, web_staging_root)
 
-        new_event_count, empty_urls_in_dry_run = verify_build(
-            repo, activity_id, expected_event_count, dry_run, expected, manifest["id"]
+        _, empty_urls_in_dry_run = verify_build(
+            repo, activity_id, 1, dry_run, expected, manifest["id"], append
         )
 
         test_result = run_tests(repo)
+        if test_result.returncode != 0:
+            raise PublishError("npm test 没有通过，请看上方输出。没有写入服务器。")
+        source = built_source(repo, activity_id)
+        if not dry_run:
+            check_built_source(source, append)
 
-    diff_stat = git_diff_stat(repo)
-
-    print(f"发布检查通过，活动 id：{activity_id}，活动目录：{activity_folder_name}")
-    print(f"构建前活动数（HEAD snapshot）：{previous_event_count}，构建后活动数：{new_event_count}")
+    mode = "追加素材" if append else ("整场更新" if is_update else "新增活动")
+    print(f"发布检查通过，活动 id：{manifest['id']}，活动目录：{activity_folder_name}（{mode}）")
     print(f"核对通过：活动照片 {expected['gallery']}、视频 {expected['videos']}、案例 {len(expected['cases'])} 个")
     if dry_run:
         label = "dry-run：upload 未写云端，url 预期为空" if empty_urls_in_dry_run else "dry-run：upload 未写云端"
         print(label)
-    print(f"npm test：{'通过' if test_result.returncode == 0 else '失败'}")
-    print("git diff --stat：")
-    print(diff_stat or "(无变化)")
-    print(f"\n下一步：确认无误后在 activity/{manifest['id']} 分支提交，推送该分支，再用 APP 部署专员部署测试站 media-staging 预览（详见 references/release.md）。")
-    print("本脚本未 commit、未 push、未部署。")
-
-    if test_result.returncode != 0:
-        raise PublishError("npm test 没有通过，请看上方输出。")
+        print(f"dry-run：没有写入 {site}")
+        return
+    result = write_activity(site, source, append)
+    print(f"已写入 {site}：{mode}，网站现在共 {result.get('activities')} 场活动")
+    print(f"打开查看：{site}/events/{urllib.parse.quote(activity_id)}")
 
 
 def main(argv=None):
@@ -489,9 +628,10 @@ def main(argv=None):
     parser.add_argument("--web-root", required=True, help="archive.py mirror 的输出根目录")
     parser.add_argument("--app", default=DEFAULT_APP, help="上传用的 app id")
     parser.add_argument("--dry-run", action="store_true", help="upload-media.mjs 加 --dry-run，不写云端")
+    parser.add_argument("--append", action="store_true", help="给已有活动追加这批照片/案例，不整场替换")
     args = parser.parse_args(argv)
     try:
-        publish(args.activity, args.repo, args.web_root, args.app, args.dry_run)
+        publish(args.activity, args.repo, args.web_root, args.app, args.dry_run, args.append)
     except PublishError as exc:
         raise SystemExit("错误: " + str(exc))
 

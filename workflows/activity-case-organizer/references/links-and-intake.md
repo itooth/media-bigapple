@@ -1,6 +1,6 @@
 # 案例链接与输入包吸收
 
-`SKILL` 指本 Skill 文件夹。四个脚本（capture、match、register_link、absorb）都只读写活动目录，不改 manifest.json 与媒体映射.json。依赖 Pillow；capture 另需 Playwright 和本机 Chrome/Chromium。
+四个脚本（capture、match、register_link、absorb）都只读写活动目录，不改 manifest.json 与媒体映射.json。依赖 Pillow；capture 另需 Playwright 和本机 Chrome/Chromium。
 
 ## 一、链接取帧选主图（capture_case_links.py）
 
@@ -12,7 +12,7 @@
 - 候选 status 一律 `needs-review`。必须逐张实看，真深色游戏不能只因颜色深判错。失败记原因，不伪造图片。
 - 选主图：优先能看出作品身份与玩法/功能全貌的帧；避开只有标题、LOGO、加载进度、纯文字、空白的帧。每个案例只一张主图。
 - 每条链接有整体时限（默认 max(60, 4×`--timeout`) 秒，可用 `--link-timeout` 调整）。取帧在独立子进程里跑，超时整组杀掉，该条在 `capture-review.json` 记 `status: failed` 和 `error: TimeoutError: ...`，继续下一条，进程正常退出（有失败时退出码 1）。失败的链接用 `register_link.py --status failed` 登记。
-- 选定后用 `register_link.py` 登记（见下），不要手改 JSON：它把选中帧复制进案例 `截图/`（文件名写实际画面内容），在媒体映射.json 写/更新 linkReview，并在 `其他/整理记录.json` 把该截图标为已审（`--evidence` 必填，写实看到的内容）。之后 `archive.py mirror`（会保留 linkReview，已审截图不再算待审），再 `catalog.py`。
+- 选定后用 `register_link.py` 登记（见下），不要手改 JSON：它把选中帧复制进案例 `截图/`（文件名写实际画面内容），在媒体映射.json 写/更新 linkReview，并在 `其他/整理记录.json` 把该截图标为已审（`--evidence` 必填，写实看到的内容）。之后跑 `archive.py mirror`（会保留 linkReview，已审截图不再算待审）。
 - linkReview 字段：`url,casePath,sourcePath,title,status,captureKind,screenshotPath,capturedAt`，可附 `error/evidence/reason`。
 - `captured` 只在真网页或视频帧已实看后设置。`captureKind` 取 `page-first`、`page-settled`、`page-interactive`、`page-scrolled`、`video-poster`、`video-frame`（视频帧秒数写进 evidence）。
 - 依赖库、帮助页等非作品 URL 可记 `verified-no-capture` 并写 `reason`。
@@ -50,7 +50,7 @@ python3 "$SKILL/scripts/register_link.py" /活动目录 --case 首页02_新安�
 - 读取范围：案例 `说明.md` 的「案例网址」、案例 `其他/` 下文本、`02_案例/` 根层清单及 `案例集合材料/`、`案例素材/`、`原案例素材/`。集合清单是原始证据，保留原样。
 - 匹配：规范化名称后 `exact`（高）；`--alias`/`--alias-file` 为 `alias`（中）；唯一互相包含为 `contains`（中，需页面复核）；其余进待确认，不凭相近硬绑。证据优先级：已有截图里的作品名，其次页面标题与部署路径，再次说明简介。
 - 同一 URL 出现在两个案例会报错并拒绝 `--apply`。同作品备用入口归同一案例，主入口写「案例网址」。
-- `--apply` 只写：案例 `其他/作品链接.md` 或 `视频链接.md`、`其他/链接匹配记录.md`、`说明.md` 的网址、根 `其他/待确认素材.md`。案例没有 `说明.md` 时创建模板（`## 案例名称`、`## 案例简介`、`## 案例网址` 三节，简介写「待补充」，案例名称用去掉 `首页NN_`/五位分数前缀的名字），catalog.py 从其中的 `## 案例简介` 和 `## 案例网址` 读取，简介需要人补：请向实习生要一句作品介绍，`publish.py` 发现简介为空或「待补充」会拦住。人工填的真实网址保留并报冲突，重复运行不重复追加。
+- `--apply` 只写：案例 `其他/作品链接.md` 或 `视频链接.md`、`其他/链接匹配记录.md`、`说明.md` 的网址、根 `其他/待确认素材.md`。案例没有 `说明.md` 时创建模板（`## 案例名称`、`## 案例简介`、`## 案例网址` 三节，简介写「待补充」，案例名称用去掉 `首页NN_`/五位分数前缀的名字），网站从其中的 `## 案例简介` 和 `## 案例网址` 读取，简介需要人补：请向实习生要一句作品介绍，`publish.py` 发现简介为空或「待补充」会拦住。人工填的真实网址保留并报冲突，重复运行不重复追加。
 - 别名映射只用命令行或活动外文件，活动里不得出现 `链接对应表.md`。
 - `--verify` 实际请求页面取标题；无网络时置信度不得标 high。
 - 完成标准：清单条数 = 已分配 + 待确认；有链接的案例 `说明.md` 有真实 URL；同一 URL 不跨案例。

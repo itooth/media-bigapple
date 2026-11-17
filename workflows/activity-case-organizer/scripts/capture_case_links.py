@@ -34,6 +34,10 @@ CHROME_CANDIDATES = (
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+    r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
 )
 START_SELECTORS = ('button:has-text("开始")', 'text=开始游戏', 'text=开始冒险', 'text=继续', 'text=Start',
                    'text=Play', '[data-action="start"]', '.start-button', '#start')
@@ -49,7 +53,7 @@ def chrome_binary(explicit=None):
     for candidate in CHROME_CANDIDATES:
         if Path(candidate).is_file():
             return candidate
-    found = shutil.which('chromium') or shutil.which('google-chrome') or shutil.which('chrome')
+    found = shutil.which('chromium') or shutil.which('google-chrome') or shutil.which('chrome') or shutil.which('msedge')
     if not found:
         raise ValueError('No Chromium browser found; pass --chrome /path/to/binary')
     return found

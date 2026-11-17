@@ -257,7 +257,7 @@ def resolve_link_file(case, name):
 
 
 def ensure_description(case_dir):
-    """Create the 说明.md skeleton catalog.py reads (案例简介 / 案例网址) when the case has none."""
+    """Create the 说明.md skeleton the website build reads (案例简介 / 案例网址) when the case has none."""
     path = case_dir / '说明.md'
     if path.exists():
         return False

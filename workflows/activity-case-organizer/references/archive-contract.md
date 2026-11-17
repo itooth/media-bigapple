@@ -1,68 +1,62 @@
 # 整理与数据契约
 
-## 正式目录
+## 命令
+
+```sh
+python3 "$SKILL/scripts/archive.py" scan /输入目录 /工作区/整理计划.json
+# 同一活动补素材，或复用以前活动里的同一批照片：继承已审核的判断
+python3 "$SKILL/scripts/archive.py" scan /新一批素材 /工作区/整理计划-2.json --archive /素材库/活动
+python3 "$SKILL/scripts/archive.py" apply /工作区/整理计划.json /素材库/活动
+python3 "$SKILL/scripts/archive.py" mirror /素材库/活动 /网站压缩素材
+```
+
+1. `scan` 只盘点，计划写在输入目录外。
+2. 助手实看后在计划里给每个 entry 填 `targetPath`（按下面的目录和命名）和 `review`（`reviewed: true`、`evidence` 写实看到的内容）。`01_活动照片/` 里的图都会进相册；海报、logo 不想展示就放 `其他/`。拿不准的也放 `其他/`，写明原因。
+3. 处理计划里的 `similarGroups`（画面几乎一样但字节不同的照片组）：每组只留一张进 `01_活动照片/`，其余 `targetPath` 改到 `其他/相似连拍/`；确实要都留，给这组加 `"keepAll": "理由"`。
+4. `apply` 复制到活动目录，输入原件保留；有没处理的相似组会拒绝。
+5. **改 manifest.json**：`apply` 生成的 `id` 是随机 UUID，不能发布。`id` 改成 `MM-DD-英文或拼音短名`（如 `10-28-yiwu-ai-class`），不能和网站上已有活动重复（`curl -s https://media.bigapple.work/api/site` 看各活动的 `id`）；`uid` 设为活动目录名。同时填 `title`、`date`（YYYY-MM-DD，未知填 null，不填当天）、`venue`、`summary`。`summary` 是网站上给人看的一句话（这场做了什么），不超过 20 字，不能写「××活动资料与成员作品归档」这类模板句，向实习生要；细节写进案例 `说明.md` 的「详细说明」。`publish.py` 超字数或模板句会拦。
+6. **视频封面**：`video_posters.py frames <活动目录>` 给每个还没封面的视频在 8%–78% 处抽 6 帧，自动挑最清晰的一张，写好封面文件、`整理记录.json` 和 manifest 的 `videoPosters`，并在活动目录外 `.视频封面候选/<活动>/总览.jpg` 出一张总览图（绿框是自动选中）。必须实看总览图：选中帧是背影、糊帧、转场、黑场或看不出内容时，用 `video_posters.py pick <活动目录> <视频相对路径> <编号>` 换成最能说明这段视频的一帧。
+7. `mirror` 生成网站展示副本和 `媒体映射.json`。有待审素材时返回 `pendingOrFailed`，属正常中间态，补完 review 再跑。
+
+之后改文件名、排序或替换素材，直接改活动目录再跑 `mirror`：只改名不重新压缩；内容变了的文件会变成 needs-review，要重新实看。要排除某张图，在 `媒体映射.json` 把它设 `selected: false` 并写理由。
+
+## 活动目录
 
 ```text
 YYYY-MM-DD_活动名称/
-+-- 01_活动照片/                 现场照片、视频、海报、活动级 logo
++-- 01_活动照片/                 现场照片、活动视频（现场实拍）、海报、活动级 logo
+|   +-- 视频封面/               活动视频封面 <视频名>.poster.jpg（脚本生成，不进相册）
 +-- 02_案例/
-|   +-- 首页01_案例名称/         已有人工作品名与顺序优先
-|       +-- 说明.md             案例名称 / 案例简介 / 案例网址
-|       +-- 截图/               图片作品、真实页面截图、作品视频
+|   +-- 首页01_案例名称/
+|       +-- 说明.md             ## 案例名称 / ## 案例简介 / ## 案例网址
+|       +-- 截图/               图片作品、真实页面截图（只放图）
+|       +-- 视频/               作品视频 + 同名 <视频名>.poster.jpg 封面
 |       +-- 其他/               链接原文、PPT、PDF、源码及附件
 +-- 03_社交媒体/                报道链接、截图
 +-- 其他/                      待确认项、活动资料、整理记录.json
-+-- manifest.json              version 6，活动事实及全量文件哈希
-+-- 媒体映射.json               version 2，原件到展示副本的映射
++-- manifest.json
++-- 媒体映射.json
 ```
 
-旧素材有独立源码目录或视频位于 `其他/` 时保留原件，逐项明确展示用途再迁入规范目录；不能让脚本猜测并抽走项目依赖。裸输入、压缩包解压目录放活动外；未经核验不删除。近似画面不按字节重复删除。同名不同文件使用独立中文名。
+裸输入和解压目录放活动外，未经核验不删除。旧素材里的源码目录保留原样，逐项确认用途再迁入，不让脚本猜着抽走项目依赖。
 
-## 命名（与网站解析器一致）
+## 命名（网站按文件名解析）
 
-网站按文件名解析排序和标记（仓库 `docs/media-contract.md`、`src/lib/mediaNaming.js`），命名不对会排到最后或丢封面：
+命名不对会排到最后或丢封面：
 
-- 活动照片、视频：`五位分数_[首页_][封面_]内容分类_具体描述.扩展名`，如 `10000_封面_活动_全体合影.jpg`、`09500_首页_活动_学员讲解作品.jpg`、`09150_活动视频_现场合影.mp4`。分数 00000–10000，越高越靠前；`首页` 进第一屏；每场最多一张 `封面`。
+- 活动照片、视频：`五位分数_[首页_][封面_]内容分类_具体描述.扩展名`，如 `10000_封面_活动_全体合影.jpg`、`09500_首页_活动_学员讲解作品.jpg`、`09150_活动视频_现场合影.mp4`。分数 00000–10000，越高越靠前；`首页` 进第一屏；每场最多一张 `封面`。不要用 `首页01_` 这种带数字的标记，网站会读成没有分数。
 - 案例目录：`首页NN_案例名`（首页按 NN 排序）或 `五位分数_案例名`。
-- 案例截图：`五位分数_主图_描述.png`。网站每个案例只展示文件名含「主图」的那一张，其他截图只留档不展示；有多张图时必须恰好一张含「主图」，否则整个案例不显示且不报错；只有一张图时可省略「主图」。`publish.py` 会检查这条，`register_link.py` 在案例还没有主图时自动给 `--name` 加 `10000_主图_` 前缀。
-- 活动照片文件名不要用 `首页01_` 这种带数字的首页标记，网站会读成没有分数。
+- 案例截图：`五位分数_主图_描述.png`。网站每个案例只展示含「主图」的那一张；有多张图时必须恰好一张含「主图」，否则整个案例不显示且不报错。只有一张图时可省。`publish.py` 会检查这条。
+- 同名不同文件用不同的中文描述区分。
 
-## 计划与 AI 沉淀
+## 视频放哪
 
-`scan` 输出计划位于输入目录外。每个 entry 包含 `assetId, sourcePath, originalName, sha256, bytes, targetPath, selected, review`；AI 填写 `targetPath`、`review.reviewed/evidence/confidence`，可补 `scoreDimensions`、`sampledSeconds`、`role`。`role` 可为 poster/logo/resource，避免海报/logo 混入现场相册。描述与评分必须有实看依据。未确定项移至 `其他/`，说明原因；不让新手逐项编辑这些字段。
+一个视频在图床上是两个文件：视频本体 + 一张封面 JPG，记录里引用封面。没有封面的视频 `publish.py` 会拦。
 
-`apply` 保留输入，以复制方式建立正式目录，并把计划存在 `其他/整理记录.json`。只处理当前素材，不扫描整个电脑。修改后的源文件哈希不匹配时停止，已有目标内容不同拒绝覆盖。再次整理保留已有 `assetId`；补入新文件不撤销人工选择。计划里有未处理的 `similarGroups`（相似连拍组有两张以上进 `01_活动照片/` 且没写 `keepAll`）时 `apply` 拒绝。
+- **活动视频**（现场实拍：舞台、合影、讲解、入场）→ `01_活动照片/五位分数_活动视频_描述.mp4`，显示在活动页上方。
+- **作品视频**（学员做出来的成品：广告片、口播、动画、录屏演示）→ `02_案例/<案例>/视频/描述.mp4`，显示在这个作品的案例里。能对上已有案例就放进去；对不上就新建一个只有视频的案例目录，`说明.md` 照常写简介。
+- 分不清是现场还是成品、或不知道属于哪个案例，**问实习生**，不猜。实习生交来时已分好文件夹（如「作品视频」「活动视频」）就按他的分法。文件名含「作品视频」却放在 `01_活动照片/` 的，`publish.py` 会拦。
 
-`mirror` 每次扫描当前正式文件名，保留当前 `selected`/`role` 和未知元数据；重命名后按唯一哈希复用身份和判断。相同哈希在多个案例出现时须显式核对归属，不能自动跨案例认同一作品。`首页NN_` 是人工顺序；旧五位评分、`首页_`、`封面_` 继续兼容。图片透明通道保留 PNG，普通图片 JPEG；展示视频 H.264/AAC，不截断。展示副本在归档镜像里带短哈希后缀避免冲突；发布时 `publish.py` 组装暂存目录会去掉后缀，路径为 `<活动目录名>/<originalPath 按网站规则换扩展名>`（图片 .jpg、视频 .mp4），网站按这个路径查图。需要其他压缩质量时改版本号，原件不受影响。
+## 活动页显示什么
 
-原件变化会使 review 失效，未审素材标为 needs-review；失败不产生可发布 URL。失败或待审项可在明确排除后设 `selected:false`，保留原件和理由。旧镜像文件可以留作恢复，但网站仅读当前映射，不能扫旧镜像混入页面。
-
-## manifest v6
-
-保留已有字段和 ID。`id` 稳定；对接已有线上活动须填 `uid` 为线上 UID，不用标题匹配。基础字段：`title,date(YYYY-MM-DD或null),venue,organizer,coOrganizers,summary,tags,sourceFolder,assets[]`。每项 asset 为 `path,name,type,bytes,sha256`；路径为相对活动目录的 POSIX 路径。JSON 自身不进入 assets，避免自引用。未知事实为空；日期未知不填当天。
-
-`caseIds` 为案例相对目录到稳定 ID；重命名通过资产身份延续，歧义人工确认。`presentation` 允许：
-
-```json
-{
-  "headline": "用户确认的活动标题",
-  "intro": "有来源的活动介绍",
-  "poster": {"path": "01_活动照片/活动海报.png", "caption": "活动海报"},
-  "partners": [{"name":"合作方名称","role":"联合主办","path":"01_活动照片/合作方标识.png"}],
-  "resources": [{"title":"现场课件","path":"其他/课件.pdf"}]
-}
-```
-
-仅引用已明确可公开的资料；`resources.path` 允许 PDF/PPT/Word，不自动暴露源码包。外链资料用 `href`，可下载文件加 `downloadable:true`。无海报时使用现有封面，无 logo/资料省略。
-
-## 媒体映射 v2
-
-`activity,media[],linkReview[]`。媒体记录：`assetId,originalName,normalizedName,originalPath,originalSha256,originalBytes,mediaType,websitePath,websiteSha256,websiteBytes,compression,processedAt,status,review,selected,role,cover,homepage,score`。`websitePath` 相对 `--website-root`。复用条件为原件哈希、压缩版本和真实输出哈希均一致；不能只看修改时间。宽高/时长未知保持未知。
-
-链接记录：`url,casePath,sourcePath,title,status,captureKind,screenshotPath,capturedAt`，可附 `error/evidence`。`casePath` 指案例目录；报道可用 `kind:social` 且 casePath 为空。captured 只在真网页或视频帧已实看后设置。来源文件必须保留。没有图片但有链接的案例通过 linkReview 保留为文字网站卡。
-
-网页实际显示：title、date、venue（作城市/地点）、summary（简介；`presentation.intro` 优先）、tags、海报、带图片的 partners。organizer/coOrganizers 写入 `detail` 留档，当前 UI 不单独显示；要在页面露出主办方，填 `presentation.partners`（有 logo 才显示）或写进 summary。
-
-scan 输出 `duplicateGroups`，计划条目带 `duplicates`：字节相同的输入只留一份展示，其余 `selected:false` 并放 `其他/重复副本_*`，记录理由。只改名的文件，展示副本沿用原文件名（镜像里带同一短哈希），属预期，不重新压缩；发布时的去后缀改名见上文。`mirror` 有待审素材时照常写出两份 JSON，返回 `pendingOrFailed` 列表，这是正常中间态，补完 review 再跑。
-
-网页 API 仍使用 `gallery/highlights/productionGallery/productions/videos/productionVideos/media`；新增 `detail.presentation` 可选。编译器按 UID 合并单场，不清空整站。UI 不回写原件，也不决定事实或选片。
+网站只用 manifest 的 title、date、venue（显示为城市/地点）、summary、tags，加上封面、照片、视频和案例。organizer、`presentation`（海报、合作方 logo、课件）当前渲染规则不读取，填了也不显示；要露出主办方或合作方就写进 summary。

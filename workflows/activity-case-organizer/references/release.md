@@ -1,81 +1,86 @@
 # 备份、发布与上线
 
-新活动走网站已有的媒体链路：展示图上传到图床 → 增量写入 `src/data` 的三份数据文件 → 构建 → 部署。部署一律用「APP 部署专员」（bigapple-deploy）Skill，先读它的当前文档。下面的命令由助手执行，实习生只需要回答问题、看页面、说「确认」。
+上新、补素材都不部署：图传图床，这一场的原始记录直接写进服务器，几秒生效。服务器按团队部署白名单认人，和 `check_team_access.sh` 是同一个判断。
 
 ```text
-整理好的归档 ─► ① 原件备份到团队共享硬盘 ─► ② publish.py（上传展示图 + 写数据 + 构建 + 测试）
-     ─► ③ 推到 activity/<id> 分支 ─► ④ 部署测试站 media-staging ─► ⑤ 实习生确认
-     ─► ⑥ 合并到 main ─► ⑦ 部署正式站 media ─► ⑧ 线上验收
+整理好的归档 ─► ① 提醒备份到团队共享硬盘 ─► ② 拉最新皮肤 + publish.py 写测试站
+     ─► ③ 助手自查 + 使用者确认 ─► ④ publish.py 写正式站 ─► ⑤ 线上验收
 ```
 
 ## ① 原件备份到团队共享硬盘
 
-先问：「这次活动的原件（整理好的整个活动文件夹）已经复制到团队共享硬盘了吗？放在哪个目录？」没复制就先引导复制：插上共享硬盘，把 `/素材库/YYYY-MM-DD_活动名` 整个文件夹拖进硬盘的活动素材目录。对方说完路径后，助手确认该目录存在且文件数一致（比较时排除 `其他/发布确认.json`：`release_gate.py backup/approve` 只写进归档，共享硬盘上的副本里没有这一份），再记录：
+提醒使用者：「请把整理好的整个活动文件夹复制到团队共享硬盘的活动素材目录，复制完告诉我。」不需要对方提供路径。对方确认后记录：
 
 ```sh
-python3 "$SKILL/scripts/release_gate.py" backup /素材库/活动 --location "/Volumes/团队共享盘/活动素材/YYYY-MM-DD_活动名"
+python3 "$SKILL/scripts/release_gate.py" backup /素材库/活动 --confirmed-by <姓名>
 ```
 
-硬盘没插在当前电脑上、无法核对时，如实告诉对方「只记录了你说的位置，我没法核对」，不要说已验证。云端图床里的是压缩展示图，不能代替原件。
+助手没法核对硬盘，就如实说「我记录的是你的确认，没有核对硬盘」。图床里只是压缩展示图，不能代替原件。
 
-## ② 生成网站数据
+## ② 写测试站
 
 ```sh
-git -C /网站工程 fetch origin main
-git -C /网站工程 switch -c activity/<活动id> origin/main   # 从最新 main 开活动分支，不要在 main 上直接改
+git -C /网站工程 pull --ff-only
+cd /网站工程 && npm ci --include=dev
 python3 "$SKILL/scripts/publish.py" /素材库/活动 --repo /网站工程 --web-root /网站压缩素材 --app media-staging
 ```
 
-测试站阶段加 `--app media-staging`，图只进测试图床，不碰正式站用的图床。
+`pull` 失败（本地有改动或分叉）：`publish.py` 每次运行都会改写网站工程里 `src/data` 的生成文件，这些改动不用提交。先 `git -C /网站工程 status --short` 看清楚：只有 `src/data/*.generated.js`、`siteContent.snapshot.json`、`docs/media-index-report.md` 这类生成文件变了，就 `git -C /网站工程 restore src/data docs` 再 pull；有别的改动就停下找查理，不要 reset/stash。
 
-脚本先检查 manifest、选中素材都已就绪、共享硬盘备份已记录，再上传展示图、生成数据、构建、跑测试；还会检查活动 id 格式与冲突（对照 HEAD 的 snapshot）、每个案例有且仅有一张主图、案例简介不为空，并核对构建结果里的封面、照片数、视频数、案例都齐。上传用的 Skill 版本取自环境变量 `BIGAPPLE_SKILL_VERSION`，没有就读 APP 部署专员的 `bigapple/metadata.json`；有文件上传失败时脚本以非 0 退出。失败时按中文提示补齐后重跑；已上传的图按哈希跳过，不会重复传。图床返回 413 说明额度满了，停下告诉负责人，不要删别的活动的图腾空间。
+脚本先做全部检查（manifest、备份记录、id、主图、案例简介），再传图、本地构建核对数量、跑 `npm test`，最后写入。打印「新增」「更新」或「追加素材」，以及网站现在的活动总数。
 
-只想看会改什么时加 `--dry-run`（不上传，图片地址为空）。
+失败按中文提示补齐后重跑，重跑是安全的：已传的图按哈希跳过，同一场活动重复写入只是覆盖成同样内容。只想看会改什么时加 `--dry-run`（不上传、不写服务器）。
 
-## ③④ 测试站预览
+## ③ 测试站确认
 
-```sh
-git -C /网站工程 add src/data docs/media-index-report.md && git -C /网站工程 commit -m "新增活动：<活动名>"   # 在 activity/<活动id> 分支
-git -C /网站工程 push -u origin activity/<活动id>
-cd /网站工程 && npm run release:prepare     # 输出一个干净目录
-```
+打开 `https://media-staging.bigapple.work/events/<活动目录名>`，助手先自己检查：标题日期、封面、照片数量与顺序、视频能播、每个案例的图片和网址、手机宽度、「下载全部素材」。有问题回到整理步骤修改，再从 ② 重跑。
 
-用 APP 部署专员把这个干净目录以 docker 方式部署到应用 `media-staging`（已存在就更新，不新建同名应用）。打开 `https://media-staging.bigapple.work/events/<活动目录名>`，助手先自己检查：标题日期、封面、照片数量与顺序、视频能播、每个案例的图片和网址、手机宽度、「下载全部素材」。有问题回到整理步骤修改，再从 ② 重跑。
-
-## ⑤ 实习生确认
-
-把测试站地址发给实习生，请对方逐项看：封面、照片、案例对应、文字。对方明确说「确认」后记录：
+然后把地址发给使用者逐项看：封面、照片、案例对应、文字。对方明确说「确认」后记录：
 
 ```sh
 python3 "$SKILL/scripts/release_gate.py" approve /素材库/活动 --preview https://media-staging.bigapple.work/events/<活动目录名> --confirmed-by <姓名>
 ```
 
-确认绑定当前素材指纹；确认之后再改任何素材或文字，`check` 会要求重新走 ②–⑤。
+确认绑定当前素材指纹；之后再改任何素材或文字，`check` 会要求重新走 ②–③。
 
-## ⑥⑦⑧ 上线
+## ④⑤ 写正式站并验收
 
 ```sh
 python3 "$SKILL/scripts/release_gate.py" check /素材库/活动
-```
-
-**上线前先把图传到正式图床。** 测试阶段用了 `--app media-staging`，数据里的图片地址指向测试图床，正式站不应依赖它。所以在同一个 `activity/<活动id>` 分支上，**不加 `--app` 重跑一遍 publish.py**（默认传到正式图床 `bigapple-onboarding-course`，已传过的按哈希跳过），再提交，然后开 PR：
-
-```sh
 python3 "$SKILL/scripts/publish.py" /素材库/活动 --repo /网站工程 --web-root /网站压缩素材
-git -C /网站工程 add src/data docs/media-index-report.md && git -C /网站工程 commit -m "活动图片切换到正式图床：<活动名>"
 ```
 
-通过后在 GitHub 开 PR 并等检查通过再合并（`gh pr create`，`gh pr checks --watch`，`gh pr merge --merge`）。合并后切到 main 拉最新（`git switch main && git pull`），`npm run release:prepare`，用 APP 部署专员更新已有应用 `media`（保留原 appId、地址、数据卷和 Secrets，不新建应用）。部署前记下当前线上 `/api/site` 的活动数。
+不加 `--app`：图传正式图床，写入正式站 `media`。正式站不能引用测试图床的图，所以这一步必须重跑，不能把测试站数据搬过去。
 
-上线后实测：活动数 = 部署前 + 1，旧活动地址都能打开；新活动详情页封面、照片、视频播放、案例网址、手机布局、批量下载。全部通过才告诉实习生「已上线」，并给出正式地址。
+验收：`https://media.bigapple.work/events/<活动目录名>` 封面、照片、视频播放、案例网址、手机布局、批量下载；首页活动数 = 脚本打印的总数，随手开两场旧活动确认正常。全部通过才告诉使用者「已上线」并给出正式地址。
 
-## 失败与回退
+## 更新已有活动
 
-- main 在你开分支后有别人的新提交：合并前先 `git pull origin main` 到活动分支，`src/data` 冲突时重跑 ② 生成，不手改生成文件。
-- APP 部署专员返回 `DEPLOYMENT_IMAGE_REGISTRY_UNAVAILABLE`：是平台临时拉不到镜像。告诉实习生「平台临时故障，不是你的操作问题」，等 5 分钟后重试同一条命令，最多 5 次，仍失败就停下找负责人。
-- 部署失败会保留上一个可用版本；结果不明先查部署状态，不重复提交。
-- 要撤下这场活动：`BIGAPPLE_REMOVE_ACTIVITIES=<活动id>` 环境变量下重跑数据生成和构建，再部署。不要用删除应用的方式回退。
+先问清是哪种，两种都要求整理目录的目录名、manifest 的 `id` 和原活动一致（查正式站：`curl -s https://media.bigapple.work/api/site`，找这场的 `uid` 和 `id`）：
 
-## 网站数据保护
+```text
+A. 只补照片/案例（最常见）            B. 整场改（换封面、删照片、改排序、改标题简介）
+   新建一个只放这批新素材的整理目录       必须用这场活动完整的整理目录
+   publish.py ... --append              publish.py ...（不加 --append）
+   服务器把这批并进去，原有的都保留       整场替换，本地目录里没有的照片网站上也会消失
+```
 
-同事电脑上的素材库没有这场活动时，构建会保留数据文件里已有的活动，不会静默删除；只有显式设置 `BIGAPPLE_REMOVE_ACTIVITIES` 才删。
+A 的做法：新目录名用原活动的目录名（放在另一个素材库路径下，避免和旧目录冲突），scan → 命名 → apply，manifest 填和原活动一样的 `id`、`uid`、`title`、`date`，再从 ① 走到 ⑤，两次 `publish.py` 都加 `--append`。追加的照片不能带「封面」标记，要换封面走 B。新照片按文件名前的五位分数插进原有顺序。
+
+B 的做法：本机没有完整目录就请使用者从团队共享硬盘复制回来，新素材用 `archive.py scan <新一批> ... --archive <完整目录>` 合并，然后从 ① 走到 ⑤。旧版本都留在服务器的 `activity_revisions` 里。
+
+## 边缘情况
+
+| 情况 | 处理 |
+|---|---|
+| 写入返回 403「不在团队部署白名单」 | 回到开工自检，把 ID 发给查理 |
+| 写入返回 409「活动 id 已被使用」 | 另一场活动占了这个 id；换一个 id（`MM-DD-短名`），别动别人的活动 |
+| 写入返回 426 | APP 部署专员版本过旧，去技能页更新后重跑 |
+| 连不上服务器、超时 | 网络恢复后重跑同一条命令 |
+| 上传大视频时进程几分钟没动静、CPU 为 0 | 连接挂住了：结束 `publish.py` 和它的 `upload-media.mjs` 子进程，重跑同一条命令，已传的跳过 |
+| 图床返回 413 | 额度满了，停下告诉查理，不要删别的活动的图腾空间 |
+| 要撤下一场活动 | 只有查理能做（`/admin` 登录后删除，旧版本保留可恢复）；告诉对方去找查理 |
+| 写错了想回到上一个版本 | 用上一版整理目录重跑 ②④；或找查理从 `activity_revisions` 恢复 |
+| 要换皮肤（改页面样式或 `src/lib/renderEvent.js` 渲染规则） | 不属于上活动：改 GitHub 上的 media-bigapple，`npm test` 通过后，这一步使用 bigapple-deploy Skill 部署 `media-staging` 验证，再部署 `media`。部署只换代码，服务器上所有活动打开时自动按新规则渲染，不用重新发布。部署前后各存一份 `/api/site`，确认没改的活动逐字节一致 |
+| 追加返回 409「旧格式」 | 这场活动还是早期格式，先用完整目录整场更新一次（B），之后就能追加 |
+| 追加返回 404 | 服务器上没有这个 uid：目录名和原活动不一致，或这其实是新活动 |
