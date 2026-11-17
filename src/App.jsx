@@ -10,7 +10,8 @@ import { LayoutGrid, Settings, SlidersHorizontal } from 'lucide-react';
 import { api } from './lib/api.js';
 import { eventPath, findEvent } from './lib/eventSlug.js';
 import { groupCases, groupEvents } from './lib/archive.js';
-import { buildCaseItems, caseSearchText, eventSearchText, matchesTokens, tokenizeQuery } from './lib/caseArchive.js';
+import { buildCaseItems, eventSearchText, matchesTokens, tokenizeQuery } from './lib/caseArchive.js';
+import { createCaseSearch } from './lib/caseSearch.js';
 import AdminLogin from './components/AdminLogin.jsx';
 import AdminPage from './components/AdminPage.jsx';
 import './admin.css';
@@ -62,6 +63,7 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
   const isCaseMode = route.page === 'cases';
   const eventMonths = useMemo(() => groupEvents(allEvents), [allEvents]);
   const allCases = useMemo(() => buildCaseItems(allEvents), [allEvents]);
+  const searchCases = useMemo(() => createCaseSearch(allCases), [allCases]);
   const [activeNav, setActiveNav] = useState('events');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -115,13 +117,10 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
 
   const filteredCaseMonths = useMemo(() => {
     if (!isCaseMode) return [];
-    const tokens = tokenizeQuery(query);
-    const list = allCases.filter((item) => {
-      if (activeTag && !item.tags.includes(activeTag)) return false;
-      return matchesTokens(caseSearchText(item), tokens);
-    });
+    // 和 /api/agent/search 同一套案例搜索；有搜索词时按相关度排，分月后组内保持这个顺序。
+    const list = searchCases(query).filter((item) => !activeTag || item.tags.includes(activeTag));
     return groupCases(list);
-  }, [activeTag, allCases, isCaseMode, query]);
+  }, [activeTag, searchCases, isCaseMode, query]);
 
   const resultCount = isCaseMode
     ? filteredCaseMonths.reduce((total, month) => total + month.events.length, 0)
@@ -194,6 +193,10 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
   };
 
   const openCase = (item) => {
+    if (item.video && !item.href) {
+      navigate(eventPath({ slug: item.eventSlug, uid: item.eventUid }));
+      return;
+    }
     if (item.href) {
       window.open(item.href, '_blank', 'noopener,noreferrer');
       return;

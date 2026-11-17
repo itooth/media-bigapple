@@ -41,7 +41,9 @@ const events = [
 test('精简目录保留案例展示、全文搜索和活动搜索，移除现场媒体列表', () => {
   const full = events.map(e => ({ ...e, detail: { ...e.detail, gallery: [{ image: '/scene.jpg' }], videos: [{ src: '/video.mp4' }] } }));
   const catalog = full.map(catalogEvent);
-  assert.deepEqual(buildCaseItems(catalog), buildCaseItems(full));
+  const withoutPinyin = (items) => items.map(({ titlePinyin, ...rest }) => rest);
+  assert.deepEqual(withoutPinyin(buildCaseItems(catalog)), withoutPinyin(buildCaseItems(full)));
+  assert.equal(buildCaseItems(catalog).find((item) => item.title === '方块派对').titlePinyin, 'fang kuai pai dui');
   for (let i = 0; i < full.length; i++) {
     const titles = e => e.detail.productionGallery.map(c => c.title || '').filter(Boolean);
     assert.equal(eventSearchText(catalog[i], titles(catalog[i])), eventSearchText(full[i], titles(full[i])));

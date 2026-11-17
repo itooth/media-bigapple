@@ -33,7 +33,7 @@
 
 后续部署看到导入记录就跳过品牌初始化，名称、Logo 和勾选结果不会还原。本地新增或修改配置不会通过 Git 自动同步生产；首次快照之后，以正式服务器后台的修改为准。若首次上线前要携带新的本地更改，须重新核对首次快照。
 
-这次增加了登录、持久化配置和上传，必须使用 Docker 模式，不能只上传 `dist/index.html`。Dockerfile 在构建阶段安装前端依赖并生成文件，运行阶段仅使用 Node.js 内置模块，无需本机安装 Docker。
+这次增加了登录、持久化配置和上传，必须使用 Docker 模式，不能只上传 `dist/index.html`。Dockerfile 在构建阶段安装前端依赖并生成文件，运行阶段只安装 package.json 里 `dependencies` 列出的服务端包（案例搜索用的 minisearch、pinyin-pro），前端包都在 `devDependencies`，无需本机安装 Docker。
 
 环境变量：
 

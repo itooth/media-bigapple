@@ -2,7 +2,7 @@ import { ArrowUpRight } from 'lucide-react';
 
 /** 案例卡片：沿用活动卡片的尺寸和排版，只把内容换成案例。 */
 export default function CaseCard({ item, onOpen }) {
-  const hint = item.href ? '在新标签打开案例网址' : '预览案例封面';
+  const hint = item.href ? '在新标签打开案例网址' : item.video ? '去活动页看案例视频' : '预览案例封面';
   const body = (
     <>
       <span className="event-image-wrap">

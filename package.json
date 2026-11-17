@@ -15,14 +15,18 @@
     "release:gateways": "node scripts/prepare-gateways.mjs",
     "preview": "node server/index.mjs"
   },
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "dependencies": {
-    "lucide-react": "^1.33.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "minisearch": "7.2.0",
+    "pinyin-pro": "3.29.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "lucide-react": "^1.33.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "vite": "^6.0.0",
     "vite-plugin-singlefile": "^2.3.3"
   }

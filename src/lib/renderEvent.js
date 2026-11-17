@@ -88,6 +88,7 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   let productionGallery = [...folderSlides, ...caseItems.filter((item) => !coveredPaths.has(item.path))];
   const productionVideos = folderCases.flatMap((item, index) => (item.videos || []).map((video, n) => ({
     id: `${record.id}-work-video-${index}-${n}`, title: video.title || item.title,
+    caseId: item.folder || item.path || `case-${index}`, caseTitle: item.title || '', href: item.href || '', readme: item.readme || '',
     src: mediaUrl(record.id, websiteAssetPath(video.path)),
     poster: video.posterPath ? mediaUrl(record.id, websiteAssetPath(video.posterPath)) : '',
   }))).filter((video) => video.src);

@@ -2,6 +2,9 @@
 // React bundle and should not have to download photos to know what they show, so every public image
 // is listed here with its section, parsed caption and (when reviewed) a short visual note.
 import { eventPath, findEvent } from '../src/lib/eventSlug.js';
+import { buildCaseItems } from '../src/lib/caseArchive.js';
+import { createCaseSearch } from '../src/lib/caseSearch.js';
+import { catalogEvent } from './public-events.mjs';
 
 const SECTIONS = [
   ['highlights', '活动剪影（首页精选）'], ['gallery', '活动照片'], ['productions', '作品'],
@@ -57,7 +60,8 @@ export function renderIndex(events, origin, notes = {}) {
     `> BigApple 与合作方举办的 AI 活动档案，共 ${events.length} 场，含现场照片、学员作品、视频和媒体报道。本文件是给 AI 助手读的文字版目录：不用运行网页，也不用下载图片。`, '',
     '## 怎么读', '',
     `- 单场活动的全部素材（每张图的描述和链接）：${origin}/agent/events/<slug>.md ，照片多时用 ?page=2 翻页`,
-    `- 按关键词找活动和图片：${origin}/api/agent/search?q=关键词 （JSON，多个词用空格分开，需同时命中）`,
+    `- 全部案例（作品）一览：${origin}/agent/cases.md （每个案例的名称、简介、网址、封面和所属活动）`,
+    `- 按关键词找案例、活动和图片：${origin}/api/agent/search?q=关键词 （JSON。cases 和网页「案例」页的搜索结果一致：支持漏字、词序乱、全拼和首字母，如「光明大富」「dafuweng」「gmdfw」；events、images 要求每个词都出现）`,
     `- 单场活动原始数据：${origin}/api/site?event=<slug> （JSON）`,
     `- 给人看的网页：${origin}/events/<slug>`,
     '- 图片链接可以直接打开，是网页展示用的压缩版。「描述」来自素材文件名；「看图」一栏是看过图片后写的画面说明，只有封面和精选图有。', '',
@@ -111,13 +115,55 @@ export function renderEventDoc(event, origin, notes = {}, page = 1) {
   return lines.join('\n');
 }
 
+// 案例索引：和网页「案例」页同一份数据（catalogEvent → buildCaseItems）和同一个搜索函数。
+// store.events() 每次改动才重建数组，所以按数组缓存即可。
+const caseIndexes = new WeakMap();
+export function caseIndex(events) {
+  if (!caseIndexes.has(events)) {
+    const items = buildCaseItems(events.map(catalogEvent));
+    caseIndexes.set(events, { items, search: createCaseSearch(items) });
+  }
+  return caseIndexes.get(events);
+}
+
+function caseRecord(item, origin) {
+  const event = { slug: item.eventSlug, uid: item.eventUid };
+  return {
+    title: clean(item.title), description: clean(item.description), href: item.href || '',
+    image: item.image || '', images: item.slides.map((slide) => slide.image),
+    video: item.video?.src || '', videoPoster: item.video?.poster || '',
+    event: slugOf(event), eventTitle: clean(item.eventTitle), eventDate: clean(item.eventDate), eventCity: clean(item.eventCity),
+    tags: item.tags, page: pageUrl(origin, event), doc: mdUrl(origin, event),
+  };
+}
+
+export function renderCasesDoc(events, origin) {
+  const { items } = caseIndex(events);
+  const lines = [
+    '# BigApple Events 全部案例', '',
+    `> 共 ${items.length} 个案例（学员和合作方在活动里做出的作品：网站、小程序、海报、视频等），按所属活动日期从新到旧。`
+      + `搜索：${origin}/api/agent/search?q=关键词 ；返回目录：${origin}/llms.txt`,
+  ];
+  let current = '';
+  for (const item of items) {
+    const record = caseRecord(item, origin);
+    const heading = `## ${record.eventDate} ${record.eventTitle}`;
+    if (heading !== current) { lines.push('', heading, '', `活动文档：${record.doc}`, ''); current = heading; }
+    const extra = [record.href && `网址：${record.href}`, record.image && `封面：${record.image}`,
+      record.images.length > 1 && `截图 ${record.images.length} 张（见活动文档）`, record.video && `视频：${record.video}`].filter(Boolean).join('；');
+    lines.push(`- 《${cell(record.title)}》${record.description ? `：${record.description}` : ''}${extra ? `。${extra}` : ''}`);
+  }
+  return lines.join('\n') + '\n';
+}
+
 const haystack = (...values) => values.flat().map(clean).join(' ').toLowerCase();
 
 export function searchArchive(events, origin, query, notes = {}, limit = 30) {
   const terms = clean(query).toLowerCase().split(' ').filter(Boolean).slice(0, 8);
-  if (!terms.length) return { query: '', events: [], images: [] };
+  if (!terms.length) return { query: '', cases: [], events: [], images: [] };
   const hits = (text) => terms.every((term) => text.includes(term));
-  const found = { query: clean(query), events: [], images: [] };
+  const cases = caseIndex(events).search(query);
+  const found = { query: clean(query), totalCases: cases.length, cases: cases.slice(0, limit).map((item) => caseRecord(item, origin)), events: [], images: [] };
   for (const event of events) {
     const d = event.detail || {};
     const eventText = haystack(event.partner, d.title, d.city, event.tags || [], event.description, d.summary, event.sourceDate);
@@ -148,7 +194,7 @@ export function agentHtml(events, origin, pathname) {
     ? `<h1>${escapeHtml(event.detail?.title || event.partner)}</h1><p>${escapeHtml(event.description)}</p>`
       + `<p>给 AI 助手：本场活动全部照片、作品和视频的文字说明与图片链接见 ${link(mdUrl(origin, event), mdUrl(origin, event))}，全站目录见 ${link(`${origin}/llms.txt`, `${origin}/llms.txt`)}。</p>`
     : `<h1>BigApple Events 活动案例集</h1><p>给 AI 助手：本页由脚本渲染。文字版目录见 ${link(`${origin}/llms.txt`, `${origin}/llms.txt`)}；`
-      + `搜索接口 ${escapeHtml(origin)}/api/agent/search?q=关键词；单场活动文档如下。</p><ul>`
+      + `全部案例 ${link(`${origin}/agent/cases.md`, `${origin}/agent/cases.md`)}；搜索接口 ${escapeHtml(origin)}/api/agent/search?q=关键词；单场活动文档如下。</p><ul>`
       + events.map((e) => `<li>${link(mdUrl(origin, e), `${clean(e.sourceDate)} ${clean(e.partner)}`)}：${escapeHtml(clean(e.description))}</li>`).join('') + '</ul>';
   return `<div class="agent-index" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">${body}</div>`;
 }

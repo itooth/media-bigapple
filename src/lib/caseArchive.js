@@ -80,7 +80,9 @@ export function buildCaseItems(events = []) {
         href: item.href || '',
         readme: item.readme || '',
         position: Number.isFinite(item.position) ? item.position : index,
+        titlePinyin: item.titlePinyin || '',
         eventUid: event.uid || event.id,
+        eventSlug: event.slug || '',
         eventId: event.id,
         eventTitle: event.partner || '',
         eventDate: event.sourceDate || '',
@@ -88,6 +90,21 @@ export function buildCaseItems(events = []) {
         tags: Array.isArray(event.tags) ? event.tags : [],
       };
       grouped.set(groupKey, entry);
+      items.push(entry);
+    });
+    // 只有视频、没有截图的案例：用视频封面当卡片图，点开去活动页看视频。
+    (event.detail?.productionVideos || []).forEach((video, index) => {
+      if (!video?.caseId || grouped.has(video.caseId)) return;
+      const title = video.caseTitle || video.title || '未命名案例';
+      const entry = {
+        key: `${event.uid || event.id}-${video.caseId}`, slides: [], video: { src: video.src, poster: video.poster || '' },
+        title, image: video.poster || event.image || '', alt: title,
+        description: caseDescription({ readme: video.readme, title }), href: video.href || '', readme: video.readme || '',
+        position: gallery.length + index, titlePinyin: video.titlePinyin || '',
+        eventUid: event.uid || event.id, eventSlug: event.slug || '', eventId: event.id, eventTitle: event.partner || '',
+        eventDate: event.sourceDate || '', eventCity: event.detail?.city || '', tags: Array.isArray(event.tags) ? event.tags : [],
+      };
+      grouped.set(video.caseId, entry);
       items.push(entry);
     });
   }

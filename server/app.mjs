@@ -8,7 +8,7 @@ import { respond } from './response.mjs';
 import { renderEvent } from '../src/lib/renderEvent.js';
 import { publicEvents } from './public-events.mjs';
 import { findEvent } from '../src/lib/eventSlug.js';
-import { injectAgentHtml, renderEventDoc, renderIndex, searchArchive } from './agent-docs.mjs';
+import { injectAgentHtml, renderCasesDoc, renderEventDoc, renderIndex, searchArchive } from './agent-docs.mjs';
 
 const digest = (text) => crypto.createHash('sha256').update(text).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -128,6 +128,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
       if (pathname === '/api/health' && method === 'GET') return send(res, 200, { ok: store.events().length > 0 });
       if (pathname === '/api/site' && method === 'GET') return send(res, 200, { brand: null, events: publicEvents(store.events(), searchParams) });
       if (pathname === '/llms.txt' && ['GET', 'HEAD'].includes(method)) return text(res, 'text/plain', renderIndex(store.events(), siteOrigin(req), agentNotes));
+      if (pathname === '/agent/cases.md' && ['GET', 'HEAD'].includes(method)) return text(res, 'text/markdown', renderCasesDoc(store.events(), siteOrigin(req)));
       const agentDoc = pathname.match(/^\/agent\/events\/([^/]+)\.md$/);
       if (agentDoc && ['GET', 'HEAD'].includes(method)) {
         let key; try { key = decodeURIComponent(agentDoc[1]); } catch { throw failure(404, '活动不存在'); }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { injectAgentHtml, parseCaption, renderEventDoc, renderIndex, searchArchive, PAGE_SIZE } from '../server/agent-docs.mjs';
+import { injectAgentHtml, parseCaption, renderCasesDoc, renderEventDoc, renderIndex, searchArchive, PAGE_SIZE } from '../server/agent-docs.mjs';
 
 const hash = 'a'.repeat(64);
 const url = (h) => `https://media.bigapple.app/x/media/${h}/${h}.jpg`;
@@ -47,6 +47,26 @@ test('search matches image notes and requires every term', () => {
   assert.equal(searchArchive([event], origin, '黑客松', notes).events[0].doc, `${origin}/agent/events/2026-11-11.md`);
 });
 
+test('search returns whole cases with fuzzy and pinyin matching, and cases.md lists every case', () => {
+  const withCase = { ...event, detail: { ...event.detail, productionGallery: [
+    { id: 'g1', caseId: 'k1', title: '光明地标大富翁', image: url('d'.repeat(64)), href: 'https://example.com/dfw', readme: '## 案例简介\n地标棋盘游戏' },
+    { id: 'g2', caseId: 'k1', title: '光明地标大富翁', image: url('e'.repeat(64)) },
+  ] } };
+  for (const q of ['光明大富', 'dafuweng', 'gmdfw']) {
+    const found = searchArchive([withCase], origin, q, notes);
+    assert.equal(found.cases.length, 1, q);
+    assert.deepEqual({ ...found.cases[0], images: found.cases[0].images.length }, {
+      title: '光明地标大富翁', description: '地标棋盘游戏', href: 'https://example.com/dfw', image: url('d'.repeat(64)), images: 2,
+      video: '', videoPoster: '', event: '2026-11-11', eventTitle: '黑客松培训', eventDate: '2026-11-11', eventCity: '肇庆', tags: ['高校'],
+      page: `${origin}/events/2026-11-11`, doc: `${origin}/agent/events/2026-11-11.md`,
+    });
+  }
+  const doc = renderCasesDoc([withCase], origin);
+  assert.match(doc, /共 1 个案例/);
+  assert.ok(doc.includes('- 《光明地标大富翁》：地标棋盘游戏。网址：https://example.com/dfw'));
+  assert.ok(renderIndex([withCase], origin).includes(`${origin}/agent/cases.md`));
+});
+
 test('page html gets an escaped agent index inside the React root', () => {
   const html = injectAgentHtml('<head></head><div id="app"></div>', [{ ...event, partner: '<b>x</b>' }], origin, '/');
   assert.ok(html.includes('rel="alternate"') && html.includes('&lt;b&gt;x&lt;/b&gt;') && !html.includes('<b>x</b>'));
@@ -72,4 +92,7 @@ test('server exposes llms.txt, event documents, search and the injected page', a
   assert.equal((await fetch(`${link}?page=9`)).status, 404);
   assert.equal((await (await fetch(`${base}/api/agent/search?q=${encodeURIComponent('活动甲')}`)).json()).events.length, 1);
   assert.match(await (await fetch(`${base}/`)).text(), /<div id="app"><div class="agent-index"/);
+  const cases = await fetch(`${base}/agent/cases.md`);
+  assert.equal(cases.status, 200); assert.match(await cases.text(), /^# BigApple Events 全部案例/);
+  assert.deepEqual((await (await fetch(`${base}/api/agent/search?q=x`)).json()).cases, []);
 });
