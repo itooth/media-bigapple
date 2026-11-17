@@ -307,6 +307,11 @@ button:disabled {
   padding-bottom: 72px;
 }
 
+/* 搜索框是盖在页面上的一条（72px），结果从它下面开始。 */
+.event-archive.search-results {
+  padding-top: calc(72px + 38px);
+}
+
 .archive-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -1717,6 +1722,10 @@ button:disabled {
   .event-archive {
     padding-top: 27px;
     padding-bottom: 48px;
+  }
+
+  .event-archive.search-results {
+    padding-top: calc(66px + 27px);
   }
 
   .archive-toolbar {

@@ -47,7 +47,7 @@ export default function App() {
   const reload = () => setRetry((n) => n + 1);
   if (!site || site.tenant !== route.tenant) return <Loading error={message} onRetry={reload} />;
   return <>
-    <Archive key={route.tenant || 'original'} route={route} navigate={navigate} site={site} onAdmin={goAdmin}
+    <Archive key={route.tenant || 'original'} route={route} navigate={navigate} site={site} onAdmin={goAdmin} catalogKey={`${endpoint}?view=catalog`}
       loading={site.requestKey !== requestKey} error={message} onRetry={reload} />
     {login && <AdminLogin onClose={() => setLogin(false)} onSuccess={() => { setLogin(false); navigate('/admin'); }} />}
   </>;
@@ -57,16 +57,26 @@ function Loading({ error, onRetry }) {
   return <main className="site-loading shell" aria-live="polite"><h1>{error ? '页面暂不可访问' : '正在加载…'}</h1>{error && <><p>{error}</p><button className="text-button" onClick={onRetry}>重新加载</button></>}</main>;
 }
 
-function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
+function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, catalogKey }) {
   const allEvents = site.events;
   const brand = site.brand;
   const isCaseMode = route.page === 'cases';
   const eventMonths = useMemo(() => groupEvents(allEvents), [allEvents]);
   const allCases = useMemo(() => buildCaseItems(allEvents), [allEvents]);
-  const searchCases = useMemo(() => createCaseSearch(allCases), [allCases]);
   const [activeNav, setActiveNav] = useState('events');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  // 活动详情页只加载了这一场；搜索要搜全站，所以打开搜索时补读一次全站目录（和列表页同一个接口）。
+  const [catalog, setCatalog] = useState(null);
+  useEffect(() => {
+    if (!searchOpen || site.view === 'catalog' || catalog) return undefined;
+    const controller = new AbortController();
+    api(catalogKey, { signal: controller.signal }).then((data) => setCatalog(data.events || [])).catch(() => {});
+    return () => controller.abort();
+  }, [searchOpen, site.view, catalog, catalogKey]);
+  const searchEvents = site.view === 'catalog' ? allEvents : catalog || [];
+  const searchPool = useMemo(() => (searchEvents === allEvents ? allCases : buildCaseItems(searchEvents)), [searchEvents, allEvents, allCases]);
+  const searchCases = useMemo(() => createCaseSearch(searchPool), [searchPool]);
   const [toast, setToast] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [contentOpen, setContentOpen] = useState(false);
@@ -79,14 +89,6 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
     navigate(`${eventPath(activeEvent)}${suffix}`, { replace: true, instant: true });
   }, [loading, activeEvent, route.eventId, route.page, navigate]);
   const activeTag = route.tag || null;
-
-  const caseTitlesByEvent = useMemo(() => {
-    const map = new Map();
-    for (const event of allEvents) {
-      map.set(event.uid || event.id, (event.detail?.productionGallery || []).map((item) => item.title || '').filter(Boolean));
-    }
-    return map;
-  }, [allEvents]);
 
   const tagOptions = useMemo(() => {
     const counts = new Map();
@@ -102,29 +104,28 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'));
   }, [allEvents, allCases, isCaseMode]);
 
-  const filteredMonths = useMemo(() => {
+  // 列表页只按活动类型筛；搜索词走下面的全局搜索结果，不再只筛当前列表。
+  const filteredMonths = useMemo(() => eventMonths
+    .map((month) => ({ ...month, events: month.events.filter((event) => !activeTag || (event.tags || []).includes(activeTag)) }))
+    .filter((month) => month.events.length > 0), [activeTag, eventMonths]);
+
+  const filteredCaseMonths = useMemo(() => (isCaseMode
+    ? groupCases(allCases.filter((item) => !activeTag || item.tags.includes(activeTag))) : []), [activeTag, allCases, isCaseMode]);
+
+  // 全局搜索：在哪个页面搜都一样，先列案例（和 /api/agent/search 的 cases 同一个函数、同样排序），再列活动。
+  const searching = searchOpen && tokenizeQuery(query).length > 0;
+  const searchResults = useMemo(() => {
+    if (!searching) return { cases: [], events: [] };
     const tokens = tokenizeQuery(query);
-    return eventMonths
-      .map((month) => ({
-        ...month,
-        events: month.events.filter((event) => {
-          if (activeTag && !(event.tags || []).includes(activeTag)) return false;
-          return matchesTokens(eventSearchText(event, caseTitlesByEvent.get(event.uid || event.id) || []), tokens);
-        }),
-      }))
-      .filter((month) => month.events.length > 0);
-  }, [activeTag, query, eventMonths, caseTitlesByEvent]);
+    return {
+      cases: searchCases(query),
+      events: searchEvents.filter((event) => matchesTokens(eventSearchText(event, (event.detail?.productionGallery || []).map((item) => item.title || '').filter(Boolean)), tokens)),
+    };
+  }, [searching, query, searchCases, searchEvents]);
 
-  const filteredCaseMonths = useMemo(() => {
-    if (!isCaseMode) return [];
-    // 和 /api/agent/search 同一套案例搜索；有搜索词时按相关度排，分月后组内保持这个顺序。
-    const list = searchCases(query).filter((item) => !activeTag || item.tags.includes(activeTag));
-    return groupCases(list);
-  }, [activeTag, searchCases, isCaseMode, query]);
-
-  const resultCount = isCaseMode
-    ? filteredCaseMonths.reduce((total, month) => total + month.events.length, 0)
-    : filteredMonths.reduce((total, month) => total + month.events.length, 0);
+  const resultCount = searching
+    ? searchResults.cases.length + searchResults.events.length
+    : isCaseMode ? allCases.length : allEvents.length;
 
   useEffect(() => {
     if (!filterOpen && !contentOpen) return undefined;
@@ -158,12 +159,12 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
   };
 
   const openEvent = (event) => {
+    if (searching) closeSearch();
     window.sessionStorage.setItem(`archive-scroll-${route.tenant || 'original'}`, String(window.scrollY));
     navigate(eventPath(event));
   };
 
   const openSearch = () => {
-    if (route.page !== 'archive' && route.page !== 'cases') navigate('/');
     setSearchOpen(true);
     setActiveNav('events');
   };
@@ -194,6 +195,7 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
 
   const openCase = (item) => {
     if (item.video && !item.href) {
+      if (searching) closeSearch();
       navigate(eventPath({ slug: item.eventSlug, uid: item.eventUid }));
       return;
     }
@@ -227,11 +229,25 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
           onQueryChange={setQuery}
           onClose={closeSearch}
           count={resultCount}
-          placeholder={isCaseMode ? '搜索案例名、所属活动、说明、链接' : '搜索活动名、简介、标签、城市、案例名'}
+          placeholder="搜索案例或活动，支持拼音，如 dafuweng"
         />
       ) : null}
 
-      {route.page === 'detail' ? (
+      {searching ? (
+        <main className="event-archive shell search-results" id="events" tabIndex="-1">
+          {searchResults.cases.length > 0 ? (
+            <MonthSection month={{ label: `案例 · ${searchResults.cases.length}`, events: searchResults.cases }} kind="case" onOpenCase={openCase} />
+          ) : null}
+          {searchResults.events.length > 0 ? (
+            <MonthSection month={{ label: `活动 · ${searchResults.events.length}`, events: searchResults.events }} onOpen={openEvent} />
+          ) : null}
+          {resultCount === 0 ? (
+            <div className="empty-state"><p>没有找到相关案例或活动。</p><button className="text-button" type="button" onClick={() => setQuery('')}>清空搜索</button></div>
+          ) : null}
+        </main>
+      ) : null}
+
+      {!searching && route.page === 'detail' ? (
         <EventDetail
           key={activeEvent.uid || activeEvent.id}
           event={activeEvent}
@@ -242,15 +258,15 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
         />
       ) : null}
 
-      {route.page === 'gallery' ? (
+      {!searching && route.page === 'gallery' ? (
         <EventGallery event={activeEvent} onBack={() => navigate(eventPath(activeEvent))} />
       ) : null}
 
-      {route.page === 'production-gallery' ? (
+      {!searching && route.page === 'production-gallery' ? (
         <EventGallery event={activeEvent} type="production" onBack={() => navigate(eventPath(activeEvent))} />
       ) : null}
 
-      {route.page === 'archive' || route.page === 'cases' ? (
+      {!searching && (route.page === 'archive' || route.page === 'cases') ? (
         <main className="event-archive shell" id="events" tabIndex="-1">
           <div className="archive-toolbar">
             <div className="archive-filter">
@@ -306,12 +322,12 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry }) {
             filteredCaseMonths.length > 0 ? (
               filteredCaseMonths.map((month) => <MonthSection key={month.label} month={month} kind="case" onOpenCase={openCase} />)
             ) : (
-              <div className="empty-state"><p>没有找到相关案例。</p><button className="text-button" type="button" onClick={() => { setQuery(''); if (activeTag) selectTag(null); }}>查看全部案例</button></div>
+              <div className="empty-state"><p>没有找到相关案例。</p><button className="text-button" type="button" onClick={() => selectTag(null)}>查看全部案例</button></div>
             )
           ) : filteredMonths.length > 0 ? (
             filteredMonths.map((month) => <MonthSection key={month.label} month={month} onOpen={openEvent} />)
           ) : (
-            <div className="empty-state"><p>没有找到相关活动。</p><button className="text-button" type="button" onClick={() => { setQuery(''); if (activeTag) selectTag(null); }}>查看全部活动</button></div>
+            <div className="empty-state"><p>没有找到相关活动。</p><button className="text-button" type="button" onClick={() => selectTag(null)}>查看全部活动</button></div>
           )}
         </main>
       ) : null}
