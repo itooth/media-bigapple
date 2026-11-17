@@ -44,6 +44,11 @@ class Issue:
         return {**asdict(self), 'rule': RULES.get(self.code, '')}
 
 
+# 文件名式的视频名：「08660_活动视频_xx」「现场视频_xx」「活动_视频_IMG_9841.JPG」
+RAW_VIDEO_NAME = re.compile(r'^(\d{5}_)?([^_]{0,4}_)?[^_]{0,4}视频_')
+MEANINGLESS = re.compile(r'^(IMG|VID|MVIMG|DSC|PXL)?[_-]?[0-9a-f_\-]{4,}(\.(jpe?g|png|heic))?$', re.I)
+
+
 def web_path(path):
     """与网站 websiteAssetPath 相同：图片按 .jpg、视频按 .mp4 查图床索引。"""
     path = IMAGE_EXT.sub('.jpg', str(path or ''))
@@ -86,8 +91,9 @@ def check_source(source):
             add('work-video-in-activity', path, f'{name} 是作品视频，应挂到它的案例下')
         if not has(posters.get(path)):
             add('video-no-poster', path, f'{name} 没有封面')
-        if not titles.get(path) and re.match(r'^(\d{5}_)?(活动视频|作品视频|视频)_', name):
-            add('video-raw-title', path, f'{name} 会显示成「{re.sub(r"^\d{5}_", "", Path(name).stem)}」')
+        shown = titles.get(path) or re.sub(r'^\d{5}_', '', Path(name).stem)
+        if RAW_VIDEO_NAME.match(shown) or MEANINGLESS.match(shown):
+            add('video-raw-title', path, f'{name} 会显示成「{shown}」')
 
     for c in source.get('cases') or []:
         title = c.get('title') or c.get('folder') or ''

@@ -84,11 +84,13 @@ def score_of(name):
     return int(m.group(1)) if m else 0
 
 
-def clean_title(name):
-    """「08660_活动视频_一起查看电脑作品.mp4」-> 「一起查看电脑作品」。"""
+def clean_title(name, fallback=''):
+    """「08660_活动视频_一起查看电脑作品.mp4」-> 「一起查看电脑作品」；
+    剩下的是相机编号或哈希（IMG_9841.JPG、909a59fd…）时用 fallback（如「现场花絮 03」）。"""
     stem = Path(name).stem
     stem = re.sub(r'^\d{5}_', '', stem)
-    return re.sub(r'^(活动视频|作品视频|视频)_', '', stem)
+    stem = re.sub(r'^([^_]{0,4}_)?[^_]{0,4}视频_', '', stem)
+    return fallback if fallback and checks.MEANINGLESS.match(stem) else stem
 
 
 def readme_for(title, intro, detail=''):
@@ -146,21 +148,38 @@ def op_summary(source, op):
     text = op['text'].strip()
     if not text or len(text) > checks.SUMMARY_MAX or checks.TEMPLATE_SUMMARY.search(text):
         raise RepairError(f'活动简介要 1–{checks.SUMMARY_MAX} 字且不是模板句：{text}')
-    source['record']['summary'] = text
+    record = source['record']
+    old = (record.get('summary') or '').strip()
+    if old and old != text and not checks.TEMPLATE_SUMMARY.search(old) and not record.get('summaryDetail'):
+        record['summaryDetail'] = old  # 旧的长简介里有日期、地点、奖项，留给 Agent 读；页面只显示一句话
+    record['summary'] = text
+
+
+def find_case(source, key):
+    """按文件夹名找案例；旧数据有的案例没有 folder，就按标题找（标题重复时报错，不猜）。"""
+    hit = [c for c in source['cases'] if c.get('folder') == key] or [c for c in source['cases'] if c.get('title') == key]
+    if len(hit) > 1:
+        raise RepairError(f'有 {len(hit)} 个案例都叫 {key}，请用文件夹名')
+    return hit[0] if hit else None
 
 
 def op_case_intro(source, op):
-    case = next((c for c in source['cases'] if c.get('folder') == op['case']), None)
-    if case is None:
+    """改案例一句话简介。旧简介比新的长、且还没有「详细说明」时，旧文字挪进「详细说明」，内容不丢。
+    同一文件夹出现多次（旧数据里重复的案例）时一起改。"""
+    hits = [c for c in source['cases'] if c.get('folder') == op['case']] or [c for c in source['cases'] if c.get('title') == op['case']]
+    if not hits:
         raise RepairError(f'没有案例 {op["case"]}')
     text = op['text'].strip()
     if not text or len(text) > checks.CASE_INTRO_MAX:
         raise RepairError(f'案例简介要 1–{checks.CASE_INTRO_MAX} 字：{text}')
-    readme = case.get('readme') or readme_for(case.get('title', ''), text)
-    readme = set_readme_section(readme, '案例简介', text)
-    if op.get('detail'):
-        readme = set_readme_section(readme, '详细说明', op['detail'])
-    case['readme'] = readme
+    for case in hits:
+        readme = case.get('readme') or readme_for(case.get('title', ''), text)
+        old = (checks.readme_section(readme, '案例简介') or '').strip()
+        readme = set_readme_section(readme, '案例简介', text)
+        detail = op.get('detail') or (old if len(old) > len(text) and old not in checks.PLACEHOLDER else '')
+        if detail and not (checks.readme_section(readme, '详细说明') or '').strip():
+            readme = set_readme_section(readme, '详细说明', detail)
+        case['readme'] = readme
 
 
 OPS = {'video-to-case': op_video_to_case, 'summary': op_summary, 'case-intro': op_case_intro}
@@ -178,10 +197,16 @@ def apply_ops(source, ops):
 def fill_titles(source):
     record = source['record']
     titles = record.setdefault('videoTitles', {})
-    changed = 0
+    changed = n = 0
     for v in record.get('videos') or []:
-        if v['path'] not in titles:
-            titles[v['path']] = clean_title(v.get('name') or v['path']); changed += 1
+        name = v.get('name') or v['path']
+        if checks.MEANINGLESS.match(clean_title(name)):
+            n += 1
+        old = titles.get(v['path'])
+        if not old or old == clean_title(name) or checks.RAW_VIDEO_NAME.match(old):  # 只改机器生成的，人写的不动
+            new = clean_title(name, f'现场花絮 {n:02d}')
+            if new != old:
+                titles[v['path']] = new; changed += 1
     return changed
 
 

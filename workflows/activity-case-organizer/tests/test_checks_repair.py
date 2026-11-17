@@ -99,10 +99,35 @@ class RepairOps(unittest.TestCase):
         self.assertEqual(after['cases'][-1]['videos'][0]['posterPath'], v['poster'])
         self.assertNotIn('08800_广告片', ' '.join(t[0] for t in repair.poster_targets(after)))
 
+    def test_summary_keeps_long_text(self):
+        long = '2026 年 8 月 30 日在前海举办，评出一等奖 BUYER READY 等作品，学员现场组队开发。'
+        after = repair.apply_ops(source(summary=long), [{'op': 'summary', 'text': '3小时组队做出AI Agent'}])
+        self.assertEqual(after['record']['summaryDetail'], long)
+        after = repair.apply_ops(source(summary='活动活动资料与成员作品归档。'), [{'op': 'summary', 'text': '新简介'}])
+        self.assertNotIn('summaryDetail', after['record'])
+
+    def test_case_intro_moves_old_text_to_detail(self):
+        s = source(); s['cases'][0]['readme'] = '## 案例简介\n一段很长很长很长很长很长的旧简介文字\n'
+        s['cases'].append(dict(s['cases'][0]))
+        after = repair.apply_ops(s, [{'op': 'case-intro', 'case': '首页01_作品', 'text': '短简介'}])
+        for c in after['cases']:
+            self.assertIn('## 案例简介\n短简介', c['readme']); self.assertIn('## 详细说明\n一段很长很长很长很长很长的旧简介文字', c['readme'])
+
     def test_clean_title(self):
         self.assertEqual(repair.clean_title('08660_活动视频_一起查看电脑作品.mp4'), '一起查看电脑作品')
         self.assertEqual(repair.clean_title('10001_作品视频_楞严咒.mp4'), '楞严咒')
         self.assertEqual(repair.clean_title('现场.mov'), '现场')
+        self.assertEqual(repair.clean_title('20006_现场视频_课程记录06.mp4'), '课程记录06')
+        self.assertEqual(repair.clean_title('06750_活动_视频_IMG_9841.JPG.mp4', '现场花絮 01'), '现场花絮 01')
+        self.assertEqual(repair.clean_title('06980_活动_视频_cd0822c2eb385faef42699c495084923.mp4', '现场花絮 02'), '现场花絮 02')
+        self.assertTrue(checks.RAW_VIDEO_NAME.match('20006_现场视频_课程记录06.mp4'))
+        self.assertFalse(checks.RAW_VIDEO_NAME.match('20006_课程记录06.mp4'))
+
+    def test_fill_titles_redoes_machine_titles_only(self):
+        s = source(); p0, p1 = (v['path'] for v in s['record']['videos'])
+        s['record']['videoTitles'] = {p0: '活动视频_现场', p1: '人写的标题'}
+        repair.fill_titles(s)
+        self.assertEqual(s['record']['videoTitles'], {p0: '现场', p1: '人写的标题'})
 
 
 if __name__ == '__main__':
