@@ -31,7 +31,7 @@ YYYY-MM-DD_活动名称/
 
 `scan` 输出计划位于输入目录外。每个 entry 包含 `assetId, sourcePath, originalName, sha256, bytes, targetPath, selected, review`；AI 填写 `targetPath`、`review.reviewed/evidence/confidence`，可补 `scoreDimensions`、`sampledSeconds`、`role`。`role` 可为 poster/logo/resource，避免海报/logo 混入现场相册。描述与评分必须有实看依据。未确定项移至 `其他/`，说明原因；不让新手逐项编辑这些字段。
 
-`apply` 保留输入，以复制方式建立正式目录，并把计划存在 `其他/整理记录.json`。只处理当前素材，不扫描整个电脑。修改后的源文件哈希不匹配时停止，已有目标内容不同拒绝覆盖。再次整理保留已有 `assetId`；补入新文件不撤销人工选择。
+`apply` 保留输入，以复制方式建立正式目录，并把计划存在 `其他/整理记录.json`。只处理当前素材，不扫描整个电脑。修改后的源文件哈希不匹配时停止，已有目标内容不同拒绝覆盖。再次整理保留已有 `assetId`；补入新文件不撤销人工选择。计划里有未处理的 `similarGroups`（相似连拍组有两张以上进 `01_活动照片/` 且没写 `keepAll`）时 `apply` 拒绝。
 
 `mirror` 每次扫描当前正式文件名，保留当前 `selected`/`role` 和未知元数据；重命名后按唯一哈希复用身份和判断。相同哈希在多个案例出现时须显式核对归属，不能自动跨案例认同一作品。`首页NN_` 是人工顺序；旧五位评分、`首页_`、`封面_` 继续兼容。图片透明通道保留 PNG，普通图片 JPEG；展示视频 H.264/AAC，不截断。展示副本在归档镜像里带短哈希后缀避免冲突；发布时 `publish.py` 组装暂存目录会去掉后缀，路径为 `<活动目录名>/<originalPath 按网站规则换扩展名>`（图片 .jpg、视频 .mp4），网站按这个路径查图。需要其他压缩质量时改版本号，原件不受影响。
 

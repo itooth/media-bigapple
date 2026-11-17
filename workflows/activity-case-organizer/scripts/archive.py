@@ -34,6 +34,42 @@ def known_judgments(archives):
             known.setdefault(r['sha256'],{})[(str(root),r['path'])]={**r,'archive':str(root)}
     return {sha:list(v.values()) for sha,v in known.items()}
 
+# Bursts and re-saved copies look the same but differ in bytes, so sha256 cannot catch them.
+# dHash distance <= SIMILAR_MAX lists candidates; a person or model still looks and picks.
+SIMILAR_MAX=18
+def dhash(p):
+    from PIL import Image, ImageOps
+    with Image.open(p) as im:
+        im=ImageOps.exif_transpose(im); ratio=im.width/im.height
+        px=im.convert('L').resize((9,8)).tobytes()
+    return sum(1<<(r*8+c) for r in range(8) for c in range(8) if px[r*9+c]>px[r*9+c+1]), ratio
+def similar_groups(source, entries, previous=()):
+    seen=set(); points=[]
+    for e in entries:
+        if Path(e['sourcePath']).suffix.lower() not in IMAGE or e['sha256'] in seen: continue
+        seen.add(e['sha256'])
+        try: points.append((e['sourcePath'],*dhash(Path(source,e['sourcePath']))))
+        except Exception: continue  # unreadable here (e.g. HEIC without plugin); visual review still applies
+    parent={p[0]:p[0] for p in points}
+    def root(x):
+        while parent[x]!=x: x=parent[x]
+        return x
+    for i,(a,ha,ra) in enumerate(points):
+        for b,hb,rb in points[i+1:]:
+            if abs(ra-rb)<0.05 and bin(ha^hb).count('1')<=SIMILAR_MAX: parent[root(b)]=root(a)
+    groups={}
+    for p in parent: groups.setdefault(root(p),[]).append(p)
+    kept={frozenset(g['members']):g.get('keepAll') for g in previous}
+    sha={e['sourcePath']:e['sha256'] for e in entries}
+    return [{'members':sorted(m),'sha256':[sha[x] for x in sorted(m)],**({'keepAll':kept[frozenset(m)]} if kept.get(frozenset(m)) else {})} for m in groups.values() if len(m)>1]
+def unresolved_similar(plan):
+    by={e['sourcePath']:e for e in plan['entries']}
+    bad=[]
+    for g in plan.get('similarGroups',[]):
+        shown=[m for m in g['members'] if m in by and (by[m].get('targetPath') or '').startswith('01_活动照片/') and by[m].get('selected',True)]
+        if len(shown)>1 and not str(g.get('keepAll') or '').strip(): bad.append(shown)
+    return bad
+
 def scan(source, plan_path, archives=None):
     source=Path(source).resolve(); target=Path(plan_path).resolve()
     if target.is_relative_to(source): raise ValueError('整理计划放在输入目录外')
@@ -64,12 +100,15 @@ def scan(source, plan_path, archives=None):
         if others: e['duplicates']=others
         else: e.pop('duplicates',None)
     missing=[e for e in old['entries'] if e['sha256'] not in {x['sha256'] for x in entries}]
-    old.update(sourceRoot=str(source),entries=entries,missing=missing,scannedAt=now()); write(target,old)
-    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'duplicateGroups':[v for v in groups.values() if len(v)>1],'missing':len(missing)},ensure_ascii=False))
+    similar=similar_groups(source,entries,old.get('similarGroups',[]))
+    old.update(sourceRoot=str(source),entries=entries,missing=missing,similarGroups=similar,scannedAt=now()); write(target,old)
+    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'duplicateGroups':[v for v in groups.values() if len(v)>1],'missing':len(missing),'similarGroups':[g['members'] for g in similar]},ensure_ascii=False))
 
 def apply(plan_path, activity):
     plan=read(plan_path); root=Path(activity).resolve(); source=Path(plan['sourceRoot']).resolve()
     if root.is_relative_to(source) or source.is_relative_to(root): raise ValueError('输入与正式归档目录须分开')
+    bad=unresolved_similar(plan)
+    if bad: raise ValueError('相似照片每组只留一张进 01_活动照片/，其余放 其他/相似连拍/；确实要都留，就在计划 similarGroups 里给这组写 keepAll 理由：\n'+'\n'.join(' / '.join(g) for g in bad))
     operations=[]; targets=set()
     for e in plan['entries']:
         rel=e.get('targetPath')
@@ -87,7 +126,7 @@ def apply(plan_path, activity):
     if record.exists():
         earlier=read(record); current={e['targetPath'] for e in plan['entries']}
         kept=[e for e in earlier['entries'] if e.get('targetPath') not in current]
-        merged['entries']=kept+plan['entries']; merged['batches']=earlier.get('batches',[{'id':earlier.get('id'),'sourceRoot':earlier.get('sourceRoot'),'appliedAt':earlier.get('appliedAt')}])
+        merged['entries']=kept+plan['entries']; merged['similarGroups']=list({tuple(g.get('sha256') or g['members']):g for g in earlier.get('similarGroups',[])+plan.get('similarGroups',[])}.values()); merged['batches']=earlier.get('batches',[{'id':earlier.get('id'),'sourceRoot':earlier.get('sourceRoot'),'appliedAt':earlier.get('appliedAt')}])
     merged.setdefault('batches',[]).append({'id':plan['id'],'sourceRoot':plan['sourceRoot'],'appliedAt':merged['appliedAt']})
     write(record,merged)
     mp=root/'manifest.json'

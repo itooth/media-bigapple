@@ -182,6 +182,25 @@ def check_cases(activity_root, media_map):
         raise PublishError("案例检查没通过：\n- " + "\n- ".join(problems))
 
 
+def check_similar_photos(activity_root, media_map):
+    """archive.py scan 标出的相似连拍组：每组只能有一张进相册，除非写了 keepAll 理由。"""
+    record = Path(activity_root) / "其他" / "整理记录.json"
+    if not record.is_file():
+        return
+    shown = {}
+    for m in selected_website_ready_media(media_map):
+        if m["originalPath"].startswith("01_活动照片/"):
+            shown.setdefault(m["originalSha256"], []).append(m["originalPath"])
+    problems = []
+    for group in read_json(record).get("similarGroups", []):
+        hits = sorted(p for sha in group.get("sha256", []) for p in shown.get(sha, []))
+        if len(hits) > 1 and not str(group.get("keepAll") or "").strip():
+            problems.append(" / ".join(hits))
+    if problems:
+        raise PublishError("这些照片几乎一样，相册里每组只留最清楚的一张，其余移到 其他/相似连拍/；"
+                           "确实要都留，在 其他/整理记录.json 的 similarGroups 给这组写 keepAll 理由：\n- " + "\n- ".join(problems))
+
+
 def check_web_targets(media_map):
     """展示副本进暂存时改名为 <活动目录>/<originalPath 按网站规则换扩展名>：检查重名；返回扩展名与网站不一致（透明 PNG）的素材。"""
     seen = {}
@@ -204,6 +223,7 @@ def run_preflight_checks(activity_root, manifest, media_map, snapshot_loader=Non
     check_media_ready(media_map)
     check_publish_confirmation(activity_root)
     check_cases(activity_root, media_map)
+    check_similar_photos(activity_root, media_map)
     transparent = check_web_targets(media_map)
     if transparent:
         print("提示：以下素材的展示副本是透明 PNG，网站按 .jpg 路径查找。发布时会改名为 .jpg 放进图床，浏览器一般仍能显示，请在测试站看一眼：")
