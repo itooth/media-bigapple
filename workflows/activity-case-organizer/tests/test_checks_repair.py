@@ -92,6 +92,13 @@ class RepairOps(unittest.TestCase):
         s2 = source(); s2['record']['videos'][0]['poster'] = '不存在.jpg'
         self.assertEqual(repair.adopt_legacy_posters(s2), 0)
 
+    def test_video_to_case_keeps_legacy_poster(self):
+        s = source(); v = s['record']['videos'][1]
+        v['poster'] = '03_社交媒体/截图/视频封面/广告.jpg'; s['assets'].append(asset(v['poster']))
+        after = repair.apply_ops(s, [{'op': 'video-to-case', 'video': v['path'], 'case': '08800_广告片', 'caseTitle': '广告片', 'intro': '品牌广告短片'}])
+        self.assertEqual(after['cases'][-1]['videos'][0]['posterPath'], v['poster'])
+        self.assertNotIn('08800_广告片', ' '.join(t[0] for t in repair.poster_targets(after)))
+
     def test_clean_title(self):
         self.assertEqual(repair.clean_title('08660_活动视频_一起查看电脑作品.mp4'), '一起查看电脑作品')
         self.assertEqual(repair.clean_title('10001_作品视频_楞严咒.mp4'), '楞严咒')

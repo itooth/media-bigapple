@@ -128,6 +128,8 @@ def op_video_to_case(source, op):
     if any(a['path'] == new for a in assets):
         raise RepairError(f'目标路径已存在：{new}')
     old_poster = (record.get('videoPosters') or {}).get(video)
+    urls = {checks.web_path(a['path']): a.get('url') for a in assets}
+    legacy = entry.get('poster') if urls.get(checks.web_path(entry.get('poster'))) else ''  # 旧数据自带的社交媒体封面，直接沿用
     for a in assets:
         if a['path'] == video:
             a.update(path=new, name=Path(new).name, category='案例', rating=f'{score:05d}', description=title)
@@ -136,7 +138,7 @@ def op_video_to_case(source, op):
     record['videos'] = [v for v in record['videos'] if v['path'] != video]
     for key in ('videoPosters', 'videoTitles'):
         (record.get(key) or {}).pop(video, None)
-    case['videos'].append({'path': new, 'title': title, 'posterPath': ''})
+    case['videos'].append({'path': new, 'title': title, 'posterPath': legacy or ''})
     return new
 
 

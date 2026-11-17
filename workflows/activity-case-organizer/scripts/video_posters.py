@@ -58,7 +58,8 @@ def activity_videos(root):
     return found
 
 
-UA = ['-user_agent', 'curl/8']  # 图床对默认 UA 返回 403；本地文件忽略这个参数无害
+UA = ['-user_agent', 'curl/8', '-rw_timeout', '30000000']  # 图床对默认 UA 返回 403；网络读 30 秒没数据就放弃
+NET_TIMEOUT = 90   # 单次取帧最长秒数；图床偶尔卡住，超时重试一次
 
 
 def is_url(src):
@@ -66,17 +67,26 @@ def is_url(src):
 
 
 def duration(path):
-    out = subprocess.run(['ffprobe', '-v', 'error', *(UA if is_url(path) else []), '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)],
-                         capture_output=True, text=True).stdout.strip()
-    try:
-        return float(out)
-    except ValueError:
-        return None
+    for _ in range(2):
+        try:
+            out = subprocess.run(['ffprobe', '-v', 'error', *(UA if is_url(path) else []), '-show_entries', 'format=duration', '-of', 'csv=p=0', str(path)],
+                                 capture_output=True, text=True, timeout=NET_TIMEOUT).stdout.strip()
+            return float(out)
+        except (ValueError, subprocess.TimeoutExpired):
+            continue
+    return None
 
 
 def grab(path, seconds, dest):
-    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error', '-y', *(UA if is_url(path) else []), '-ss', f'{seconds:.2f}', '-i', str(path), '-frames:v', '1',
-                    '-vf', f"scale='min({POSTER_MAX},iw)':-2", '-q:v', '3', str(dest)], check=True)
+    cmd = ['ffmpeg', '-nostdin', '-v', 'error', '-y', *(UA if is_url(path) else []), '-ss', f'{seconds:.2f}', '-i', str(path), '-frames:v', '1',
+           '-vf', f"scale='min({POSTER_MAX},iw)':-2", '-pix_fmt', 'yuvj420p', '-q:v', '3', str(dest)]
+    for _ in range(2):
+        try:
+            subprocess.run(cmd, check=True, timeout=NET_TIMEOUT, capture_output=True)
+            if Path(dest).is_file():
+                return True
+        except subprocess.TimeoutExpired:
+            continue
     return Path(dest).is_file()
 
 
