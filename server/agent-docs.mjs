@@ -37,6 +37,7 @@ export function eventItems(event, notes = {}) {
     const readme = clean(item.readme).replace(/#+ ?/g, '').slice(0, 200);
     items.push({
       section: key, sectionLabel: label, url, href: item.image && item.href ? item.href : '', poster: item.poster || '',
+      outlet: clean(item.outlet), date: clean(item.date),
       title: clean(item.title || item.label),
       category: caption.category, description: clean(item.description) || caption.description || readme,
       cover: caption.cover || item.image === event.image, home: key === 'highlights' || caption.home,
@@ -76,6 +77,11 @@ export function renderIndex(events, origin, notes = {}) {
 }
 
 const itemLine = (item, index) => {
+  // 报道是一篇文章：媒体名、标题、日期、链接，和照片的「文件名描述」不是一回事。
+  if (item.section === 'media') {
+    const head = [`《${item.title || item.description}》`, [item.outlet, item.date].filter(Boolean).join(' · ')].filter(Boolean).join(' — ');
+    return `${index}. ${head}\n   ${item.href || item.url}${item.url && item.href ? `\n   截图：${item.url}` : ''}`;
+  }
   const marks = [item.cover && '封面', item.section !== 'highlights' && item.home && '首页精选'].filter(Boolean).map((m) => `[${m}]`).join('');
   const head = [marks, item.title && `《${item.title}》`, item.description || '（文件名无描述）', item.category && `（${item.category}）`].filter(Boolean).join(' ');
   const extra = [item.note && `看图：${item.note}`, item.tags.length && `标签：${item.tags.join('、')}`, item.href && `作品地址：${item.href}`, item.poster && `封面图：${item.poster}`].filter(Boolean).join('；');

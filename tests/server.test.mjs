@@ -268,3 +268,29 @@ test('archived work pages are served sandboxed from the works folder only', asyn
   assert.equal((await f.request('/works/missing/')).status, 404);
   assert.equal((await f.request('/works/..%2F..%2Fetc/')).status, 200); // not a work slug: falls through to the app shell
 });
+
+test('a press report can be added from the admin session with a screenshot, and replaces the same link', async (t) => {
+  const f = await fixture(t, { isTeamMember: async () => true });
+  const url = `/api/activities/${encodeURIComponent(newSource.uid)}/press`;
+  const put = (source) => f.request(`/api/activities/${encodeURIComponent(source.uid)}`, { method: 'PUT', headers: teamHeaders, body: { source } });
+  assert.equal((await put(newSource)).status, 201);
+  assert.equal((await f.request(url, { method: 'POST', body: { href: 'https://example.test/a', outlet: '读特' } })).status, 401);
+  await f.login();
+  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0, 0, 0, 0]);
+  const upload = await f.request('/api/admin/press-images', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png });
+  assert.equal(upload.status, 201);
+  const { url: image } = await upload.json();
+  assert.match(image, /^\/press\/[a-f0-9]{64}\.png$/);
+  assert.equal((await f.request(url, { method: 'POST', body: { href: 'ftp://x', outlet: '读特' } })).status, 400);
+  assert.equal((await f.request(url, { method: 'POST', body: { outlet: '' , title: '' , href: 'https://example.test/a' } })).status, 400);
+  assert.equal((await f.request(url, { method: 'POST', body: { href: 'https://example.test/a', outlet: '读特', date: '2026/05/13' } })).status, 400);
+  const created = await f.request(url, { method: 'POST', body: { href: 'https://example.test/a', outlet: '读特', title: '小朋友的后续报道', date: '2026-05-13', image } });
+  assert.equal(created.status, 201);
+  const added = await created.json();
+  assert.equal(added.total, 1);
+  assert.equal(added.item.outlet, '读特');
+  // Same link twice keeps one card; the newer text wins.
+  assert.equal((await f.request(url, { method: 'POST', body: { href: 'https://example.test/a', outlet: '读特', title: '改过的标题' } })).status, 201);
+  const detail = await (await f.request(`/api/site?event=${encodeURIComponent(newSource.uid)}`)).json();
+  assert.deepEqual(detail.events[0].detail.media.map((m) => [m.outlet, m.title, m.image]), [['读特', '改过的标题', image]]);
+});

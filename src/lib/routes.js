@@ -1,11 +1,13 @@
-export function parseRoute(pathname, { branded = false } = {}) {
+export function parseRoute(pathname, { branded = false, search = '' } = {}) {
   const path = pathname.replace(/\/$/, '') || '/';
-  if (branded && (path === '/admin' || /^\/\d+(?=\/|$)/.test(path))) return { page: 'not-found', tenant: null, eventId: null, tag: null };
+  const params = new URLSearchParams(search);
+  const filters = { category: params.get('cat') || null, sort: params.get('sort') === 'latest' ? 'latest' : null };
+  if (branded && (path === '/admin' || /^\/\d+(?=\/|$)/.test(path))) return { page: 'not-found', tenant: null, eventId: null, tag: null, ...filters };
   if (path === '/admin') return { page: 'admin', tenant: null };
   const prefix = path.match(/^\/(\d+)(?=\/|$)/);
   const tenant = prefix?.[1] || null;
   const local = (prefix ? path.slice(prefix[0].length) : path) || '/';
-  const base = { tenant, eventId: null, tag: null };
+  const base = { tenant, eventId: null, tag: null, ...filters };
   if (local === '/' || local === '/events') return { ...base, page: 'archive' };
   try {
     const filter = local.match(/^\/filter\/([^/]+)$/);

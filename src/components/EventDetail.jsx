@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { eventPresentation, downloadItems } from '../lib/eventPresentation.js';
 import StoryViewer from './StoryViewer.jsx';
+import PressForm from './PressForm.jsx';
 import '../event-detail.css';
 
 // Jump across a long album without scrolling past (and loading) every photo.
@@ -78,6 +79,15 @@ function BulkDownload({ view }) {
 export default function EventDetail({ event, onBack }) {
   const view = useMemo(() => eventPresentation(event), [event]);
   const [viewer, setViewer] = useState(null), [heroIndex, setHeroIndex] = useState(0), [playing, setPlaying] = useState(true);
+  // 只有后台登录过的人才看到「+ 添加报道」；普通访客多一次请求都不发。
+  const [admin, setAdmin] = useState(false), [pressOpen, setPressOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    import('../lib/api.js').then(({ api }) => api('/api/admin/session'))
+      .then((session) => { if (live && session?.authenticated) setAdmin(true); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
   const heroArea = useRef(null), heroSwipe = useSwipe((step) => setHeroIndex((n) => (n + step + view.hero.length) % view.hero.length));
   const open = (items, index, label) => setViewer({ items, index, label });
   const worksExist = view.groups.length || view.websites.length || view.workVideos.length;
@@ -115,11 +125,20 @@ export default function EventDetail({ event, onBack }) {
         {view.workVideos.map((video) => <VideoCard key={video.id} video={video} open={open} label="作品视频" />)}
       </div>
     </section>
-    {view.resources.length || view.media.length ? <details className="story-resources"><summary>活动资料{view.media.length ? '与报道' : ''}</summary>
-      {view.resources.length > 0 && <div>{view.resources.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer">{item.title}<span>↗</span></a>)}</div>}
-      {view.media.length > 0 && <div><h3>社媒报道</h3>{view.media.map((item, i) => <a key={item.id || i} href={item.href} target="_blank" rel="noreferrer">{item.label || item.title || '活动报道'}<span>↗</span></a>)}</div>}
+    {view.media.length || admin ? <section className="story-section" id="story-press" aria-labelledby="story-press-title">
+      <div className="story-section-heading press-heading"><h2 id="story-press-title">媒体报道</h2>{admin ? <button className="press-add" type="button" onClick={() => setPressOpen(true)}>+ 添加报道</button> : null}<p>第三方怎么报道这次活动。</p><small>{view.media.length} 篇</small></div>
+      {view.media.length > 0 ? <div className="press-list">{view.media.map((item, i) => <a className="press-card" key={item.id || i} href={item.href} target="_blank" rel="noreferrer">
+        {item.image && <img src={item.image} alt={item.title || item.label} loading="lazy" />}
+        <span className="press-outlet">{item.outlet || item.label || '活动报道'}</span>
+        <strong>{item.title || item.label || '活动报道'}</strong>
+        {item.date && <span className="press-date">{item.date} ↗</span>}
+      </a>)}</div> : <p className="press-empty">还没有媒体报道这一场。有链接就加一条，读者能直接看到第三方怎么说。</p>}
+    </section> : null}
+    {view.resources.length ? <details className="story-resources"><summary>活动资料</summary>
+      <div>{view.resources.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer">{item.title}<span>↗</span></a>)}</div>
     </details> : null}
     <footer className="story-footer"><span>{view.title}</span><a href="#story-top" onClick={jumpToSection}>回到顶部 ↑</a></footer>
     {viewer && <StoryViewer {...viewer} onChange={(index) => setViewer((current) => ({ ...current, index }))} onClose={() => setViewer(null)} />}
+    {pressOpen ? <PressForm uid={event.uid || event.id} onClose={() => setPressOpen(false)} onSaved={() => { setPressOpen(false); window.location.reload(); }} /> : null}
   </main></div>;
 }

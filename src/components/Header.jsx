@@ -16,11 +16,12 @@ function NavButton({ active, children, ...props }) {
   );
 }
 
-export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandClick, brand }) {
+export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandClick, brand, onCases }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const selectNav = (target) => {
-    onNavChange(target);
+    if (target === 'cases') onCases?.();
+    else onNavChange(target);
     setMobileOpen(false);
   };
 
@@ -38,7 +39,8 @@ export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandCl
         </button>
 
         <nav className="desktop-nav" aria-label="主导航">
-          <NavButton active={activeNav === 'events'} onClick={() => { selectNav('events'); onBrandClick?.(); }}>Events</NavButton>
+          <NavButton active={activeNav === 'events'} onClick={() => { selectNav('events'); }}>Events</NavButton>
+          <NavButton active={activeNav === 'cases'} onClick={() => selectNav('cases')}>Cases</NavButton>
           <span className="nav-divider" aria-hidden="true" />
           <button className="search-trigger icon-text-button" type="button" onClick={openSearch}>
             <Search aria-hidden="true" />
@@ -59,7 +61,8 @@ export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandCl
 
       {mobileOpen ? (
         <nav className="mobile-nav" id="mobile-nav" aria-label="移动端导航">
-          <NavButton active={activeNav === 'events'} onClick={() => { selectNav('events'); onBrandClick?.(); }}>Events</NavButton>
+          <NavButton active={activeNav === 'events'} onClick={() => { selectNav('events'); }}>Events</NavButton>
+          <NavButton active={activeNav === 'cases'} onClick={() => selectNav('cases')}>Cases</NavButton>
           <NavButton onClick={openSearch}>Search</NavButton>
         </nav>
       ) : null}

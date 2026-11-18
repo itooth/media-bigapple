@@ -10,7 +10,8 @@ import { LayoutGrid, Settings, SlidersHorizontal } from 'lucide-react';
 import { api } from './lib/api.js';
 import { eventPath, findEvent } from './lib/eventSlug.js';
 import { groupCases, groupEvents } from './lib/archive.js';
-import { buildCaseItems, eventSearchText, matchesTokens, tokenizeQuery } from './lib/caseArchive.js';
+import { buildCaseItems, compareByAppeal, eventSearchText, matchesTokens, tokenizeQuery } from './lib/caseArchive.js';
+import { CASE_CATEGORIES, displayCategory } from './lib/caseCategory.js';
 import { createCaseSearch } from './lib/caseSearch.js';
 import AdminLogin from './components/AdminLogin.jsx';
 import AdminPage from './components/AdminPage.jsx';
@@ -112,16 +113,37 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
   const filteredCaseMonths = useMemo(() => (isCaseMode
     ? groupCases(allCases.filter((item) => !activeTag || item.tags.includes(activeTag))) : []), [activeTag, allCases, isCaseMode]);
 
-  // 全局搜索：在哪个页面搜都一样，先列案例（和 /api/agent/search 的 cases 同一个函数、同样排序），再列活动。
+  // 案例墙默认按「吸引力」排（能打开的网站、视频作品、多图完整案例靠前），
+  // 也可以切到「最新」（按所属活动日期倒序）。分类筛选和排序可以叠加。
+  const caseCategory = route.category || '';
+  const caseSort = route.sort === 'latest' ? 'latest' : 'appeal';
+  const visibleCases = useMemo(() => {
+    if (!isCaseMode) return [];
+    const list = allCases.filter((item) => (!caseCategory || displayCategory(item) === caseCategory));
+    return caseSort === 'latest' ? list : list.slice().sort(compareByAppeal);
+  }, [allCases, caseCategory, caseSort, isCaseMode]);
+  const caseCategoryCounts = useMemo(() => {
+    const counts = new Map();
+    for (const item of allCases) {
+      const name = displayCategory(item);
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    // 「其他」是兜底分类，永远排最后；其余按固定顺序。
+    const rank = (name) => (name === '其他' ? CASE_CATEGORIES.length : CASE_CATEGORIES.indexOf(name));
+    return [...counts.entries()].sort((a, b) => rank(a[0]) - rank(b[0]));
+  }, [allCases]);
+
+  // 搜索按模块分：在 Cases 里只搜案例（和 /api/agent/search 的 cases 同一个函数），
+  // 在 Events 里只搜活动。两个模块各搜各的，不再混在同一个结果页里。
   const searching = searchOpen && tokenizeQuery(query).length > 0;
   const searchResults = useMemo(() => {
     if (!searching) return { cases: [], events: [] };
     const tokens = tokenizeQuery(query);
     return {
-      cases: searchCases(query),
-      events: searchEvents.filter((event) => matchesTokens(eventSearchText(event, (event.detail?.productionGallery || []).map((item) => item.title || '').filter(Boolean)), tokens)),
+      cases: isCaseMode ? searchCases(query) : [],
+      events: isCaseMode ? [] : searchEvents.filter((event) => matchesTokens(eventSearchText(event, (event.detail?.productionGallery || []).map((item) => item.title || '').filter(Boolean)), tokens)),
     };
-  }, [searching, query, searchCases, searchEvents]);
+  }, [searching, query, searchCases, searchEvents, isCaseMode]);
 
   const resultCount = searching
     ? searchResults.cases.length + searchResults.events.length
@@ -156,6 +178,23 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
     setSearchOpen(false);
     setActiveNav('events');
     navigate('/');
+  };
+
+  const goCases = () => {
+    setSearchOpen(false);
+    setActiveNav('cases');
+    navigate('/cases');
+  };
+
+  // 案例页的分类和排序写进地址栏，刷新、分享、后退都能还原。
+  const goCasesQuery = (next) => {
+    const params = new URLSearchParams();
+    const category = next.category ?? caseCategory;
+    const sort = next.sort ?? caseSort;
+    if (category) params.set('cat', category);
+    if (sort === 'latest') params.set('sort', 'latest');
+    const query = params.toString();
+    navigate(`/cases${query ? `?${query}` : ''}`);
   };
 
   const openEvent = (event) => {
@@ -207,7 +246,7 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
   };
 
   if (loading) return <>
-    <Header brand={brand} activeNav={activeNav} onNavChange={setActiveNav} onSearchOpen={openSearch} onBrandClick={goArchive} />
+    <Header brand={brand} activeNav={activeNav} onNavChange={setActiveNav} onSearchOpen={openSearch} onBrandClick={goArchive} onCases={goCases} />
     <Loading error={error} onRetry={onRetry} />
   </>;
 
@@ -222,14 +261,14 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
 
   return (
     <>
-      <Header brand={brand} activeNav={activeNav} onNavChange={setActiveNav} onSearchOpen={openSearch} onBrandClick={goArchive} />
+      <Header brand={brand} activeNav={activeNav} onNavChange={setActiveNav} onSearchOpen={openSearch} onBrandClick={goArchive} onCases={goCases} />
       {searchOpen ? (
         <SearchPanel
           query={query}
           onQueryChange={setQuery}
           onClose={closeSearch}
           count={resultCount}
-          placeholder="搜索案例或活动，支持拼音，如 dafuweng"
+          placeholder={isCaseMode ? '搜索案例，支持拼音，如 dafuweng' : '搜索活动，支持拼音'}
         />
       ) : null}
 
@@ -319,11 +358,33 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
             </div>
           </div>
           {isCaseMode ? (
-            filteredCaseMonths.length > 0 ? (
-              filteredCaseMonths.map((month) => <MonthSection key={month.label} month={month} kind="case" onOpenCase={openCase} />)
-            ) : (
-              <div className="empty-state"><p>没有找到相关案例。</p><button className="text-button" type="button" onClick={() => selectTag(null)}>查看全部案例</button></div>
-            )
+            <>
+              <nav className="case-tabs" aria-label="案例分类">
+                <button className={`case-tab${caseCategory ? '' : ' is-selected'}`} type="button" onClick={() => goCasesQuery({ category: '' })}>全部</button>
+                {caseCategoryCounts.map(([name, count]) => (
+                  <button
+                    key={name}
+                    className={`case-tab${caseCategory === name ? ' is-selected' : ''}`}
+                    type="button"
+                    aria-pressed={caseCategory === name}
+                    onClick={() => goCasesQuery({ category: caseCategory === name ? '' : name })}
+                  >
+                    {name}<span className="case-tab-count">{count}</span>
+                  </button>
+                ))}
+                <div className="case-sort">
+                  <button className={caseSort === 'appeal' ? 'is-selected' : ''} type="button" aria-pressed={caseSort === 'appeal'} onClick={() => goCasesQuery({ sort: 'appeal' })}>人气</button>
+                  <button className={caseSort === 'latest' ? 'is-selected' : ''} type="button" aria-pressed={caseSort === 'latest'} onClick={() => goCasesQuery({ sort: 'latest' })}>活动</button>
+                </div>
+              </nav>
+              {visibleCases.length > 0 ? (
+                caseSort === 'latest'
+                  ? groupCases(visibleCases).map((month) => <MonthSection key={month.label} month={month} kind="case" onOpenCase={openCase} />)
+                  : <MonthSection month={{ label: '', events: visibleCases }} kind="case" onOpenCase={openCase} />
+              ) : (
+                <div className="empty-state"><p>这个分类下还没有案例。</p><button className="text-button" type="button" onClick={() => goCasesQuery({ category: '' })}>查看全部案例</button></div>
+              )}
+            </>
           ) : filteredMonths.length > 0 ? (
             filteredMonths.map((month) => <MonthSection key={month.label} month={month} onOpen={openEvent} />)
           ) : (

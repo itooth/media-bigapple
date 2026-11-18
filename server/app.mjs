@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { openStore } from './store.mjs';
 import { saveLogo } from './logos.mjs';
+import { savePressImage } from './pressImages.mjs';
 import { respond } from './response.mjs';
 import { renderEvent } from '../src/lib/renderEvent.js';
 import { publicEvents } from './public-events.mjs';
@@ -175,6 +176,39 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         console.info('[api/activities] appended', { uid, actor, assets: body.assets?.length || 0, cases: body.cases?.length || 0, videos: body.videos?.length || 0 });
         return send(res, 200, { uid, created: false, activities: store.events().length });
       }
+      // 追加一条报道（页面上的「+ 添加报道」）。手填字段，不走自动抓取。
+      const pressMatch = pathname.match(/^\/api\/activities\/([^/]+)\/press$/);
+      if (pressMatch && method === 'POST') {
+        const uid = decodeURIComponent(pressMatch[1]);
+        // 后台页面上点「+ 添加报道」用登录会话；脚本和 Agent 用团队部署身份。
+        const session = getSession(req);
+        let actor;
+        if (session) { requireMutation(req); actor = `admin:${session.key.slice(0, 8)}`; }
+        else actor = await requireTeamMember(req);
+        const body = await activityBody(req);
+        const current = store.source(uid);
+        if (!current) throw failure(404, '服务器上还没有这场活动');
+        if (current.detail) throw failure(409, '这场活动是旧格式，请先用完整整理目录整场更新一次');
+        const href = String(body?.href || '').trim();
+        if (!/^https?:\/\//i.test(href)) throw failure(400, '报道链接必须以 http:// 或 https:// 开头');
+        const outlet = String(body?.outlet || '').trim().slice(0, 40);
+        const title = String(body?.title || '').trim().slice(0, 120);
+        const date = String(body?.date || '').trim();
+        if (!outlet && !title) throw failure(400, '报道至少要填媒体名或标题');
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw failure(400, '报道日期格式应为 2026-05-13');
+        const image = String(body?.image || '').trim();
+        if (image && !/^(https?:\/\/|\/)/.test(image)) throw failure(400, '报道截图地址无效');
+        const existing = (current.social || []).filter((entry) => entry.href !== href);
+        const previous = (current.social || []).find((entry) => entry.href === href);
+        // 改一条已有报道时没重新传截图，就沿用原来那张，别把图抹掉。
+        const nextImage = image || previous?.image || '';
+        const item = { id: previous?.id || `${uid}-press-${crypto.randomBytes(4).toString('hex')}`, type: 'news', label: outlet || title, href, outlet, title, date, ...(nextImage ? { image: nextImage } : {}) };
+        const next = { ...current, social: [...existing, item] };
+        renderSource(uid, next);
+        store.upsertActivity(next, actor);
+        console.info('[api/activities] press added', { uid, actor, outlet, href });
+        return send(res, 201, { uid, item, total: next.social.length });
+      }
       if (activityMatch && method === 'DELETE') {
         requireMutation(req);
         if (!getSession(req)) throw failure(401, '登录已过期，请重新登录');
@@ -230,6 +264,12 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         }
         if (pathname === '/api/admin/resellers' && method === 'GET') return send(res, 200, { resellers: store.list(), activities: metadata() });
         if (pathname === '/api/admin/logos' && method === 'POST') return send(res, 201, await uploadLogo(req));
+        // 报道截图：后台登录后上传，返回一个 https 地址；地址再随报道一起写进活动。
+        if (pathname === '/api/admin/press-images' && method === 'POST') {
+          const bytes = await readBody(req, 6 * 1024 * 1024);
+          const url = await savePressImage(bytes, { dataDir, secureCookies, storageUrl, storageToken });
+          return send(res, 201, { url });
+        }
         if (pathname === '/api/admin/resellers' && method === 'POST') {
           const body = await jsonBody(req); const value = validate(body);
           if (typeof body.clientKey !== 'string' || !/^[\w-]{16,80}$/.test(body.clientKey)) throw failure(400, '缺少请求编号');
@@ -280,6 +320,15 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         const file = path.join(dataDir, 'logos', path.basename(pathname));
         if (!fs.existsSync(file)) throw failure(404, '图片不存在');
         res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000, immutable' });
+        return res.end(method === 'HEAD' ? undefined : fs.readFileSync(file));
+      }
+      // 报道截图：线上由对象存储直接返回 https 地址；本地预览和未接存储时走这里。
+      const pressFile = pathname.match(/^\/press\/([a-f0-9]{64}\.(?:png|jpg|webp))$/);
+      if (pressFile) {
+        const file = path.join(dataDir, 'press', pressFile[1]);
+        if (!fs.existsSync(file)) throw failure(404, '图片不存在');
+        const type = pressFile[1].endsWith('.png') ? 'image/png' : pressFile[1].endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable' });
         return res.end(method === 'HEAD' ? undefined : fs.readFileSync(file));
       }
       // Single-file Vite output. No filesystem path is derived from the request.

@@ -10,7 +10,8 @@ const event = {
     title: '黑客松培训', city: '肇庆', highlights: [{ image: url(hash), caption: '首页_封面_活动_教室分组实操全景_45275dbd04' }],
     gallery: Array.from({ length: PAGE_SIZE + 3 }, (_, i) => ({ image: url(String(i).padStart(64, 'b')), caption: `活动照片_IMG_${i}` })),
     productions: [{ image: url('c'.repeat(64)), title: '你先别跑', caption: '你先别跑', href: 'https://example.com/game' }],
-    media: [{ type: 'news', label: '公众号报道', href: 'https://mp.weixin.qq.com/s/x' }],
+    media: [{ type: 'news', label: '公众号报道', href: 'https://mp.weixin.qq.com/s/x' },
+      { type: 'news', label: '读特', outlet: '读特 · 深圳晚报', title: '“小小主创”自编自导自演', date: '2026-11-13', href: 'https://m.dutenews.com/n/article/60131179', image: url('d'.repeat(64)) }],
   },
 };
 const notes = { [hash]: { description: '约三十名学生分组围坐操作电脑', tags: ['分组讨论', '适合封面'] } };
@@ -26,13 +27,18 @@ test('index lists every event with its document link', () => {
   const text = renderIndex([event], origin, notes);
   assert.match(text, /共 1 场/);
   assert.ok(text.includes(`${origin}/agent/events/2026-11-11.md`));
-  assert.match(text, /照片 203 · 作品 1 · 视频 0 · 报道 1/);
+  assert.match(text, /照片 203 · 作品 1 · 视频 0 · 报道 2/);
 });
 
 test('event document carries notes, work links and paginates large galleries', () => {
   const first = renderEventDoc(event, origin, notes, 1);
   assert.ok(first.includes('看图：约三十名学生分组围坐操作电脑；标签：分组讨论、适合封面'));
   assert.ok(first.includes('作品地址：https://example.com/game'));
+  // 报道要给出媒体名、标题、日期和原文链接；老数据只有 label 时退回标题。
+  assert.ok(first.includes('《“小小主创”自编自导自演》 — 读特 · 深圳晚报 · 2026-11-13'));
+  assert.ok(first.includes('https://m.dutenews.com/n/article/60131179'));
+  assert.ok(first.includes('1. 《公众号报道》\n   https://mp.weixin.qq.com/s/x'));
+  assert.equal(first.includes('（文件名无描述）'), false);
   assert.ok(first.includes(`第 1/2 页`) && first.includes('?page=2'));
   const second = renderEventDoc(event, origin, notes, 2);
   assert.ok(second.includes(`${PAGE_SIZE + 1}. `) && !second.includes('## 作品'));

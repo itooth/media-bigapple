@@ -98,7 +98,18 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   }
   if (folderCases.length) productions = featuredCases.slice(0, 7).flatMap((item, index) => caseSlides(item, index).slice(0, 1));
   if (aichongCases?.length) productions = aichongCases.slice(0, 7).map((item, index) => ({ id: `${record.id}-case-${index}`, image: mediaUrl(record.id, item.path), alt: item.title, caption: item.title, title: item.title, href: item.href, position: index }));
-  const media = social.map((item, index) => ({ id: `${record.id}-social-${index}`, type: 'news', label: item.label, href: item.href }));
+  // 报道：老数据只有 label + href，新数据多出媒体名、标题、日期和截图。
+  // 老数据不补默认值以外的字段，前端按「有就显示」处理，保证历史记录不报错。
+  const media = social.map((item, index) => ({
+    id: item.id || `${record.id}-social-${index}`,
+    type: 'news',
+    label: item.label || item.title || '活动报道',
+    href: item.href,
+    ...(item.outlet ? { outlet: item.outlet } : {}),
+    ...(item.title ? { title: item.title } : {}),
+    ...(item.date ? { date: item.date } : {}),
+    ...(item.image ? { image: item.image } : {}),
+  }));
   const detail = { title: record.title, date: fullDateLabel(record.date), city: record.place, summary: record.summary || `${record.title}活动资料与成员作品归档。`, highlights: homeActivity.length ? homeActivity : activity.slice(0, 5), gallery: activity, productions, productionGallery: caseItems, media, videos, productionVideos, ...(record.presentation ? { presentation: record.presentation } : {}) };
   detail.productionGallery = productionGallery;
   // id 用于查云端媒体；folder 才是唯一标识（素材库里存在同一 id 的副本文件夹，

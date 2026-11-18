@@ -52,8 +52,36 @@ export function caseDescription(item) {
   return withoutTitle(picked.join(' '), title);
 }
 
+/** 标题归一：去掉空格、标点、括号里的序号，用来判断两张图是不是同一个案例。 */
+function titleKey(title) {
+  return String(title || '')
+    .toLocaleLowerCase('zh-CN')
+    .replace(/[（(][^）)]*[）)]/g, '')
+    .replace(/[\s\-_·・.,:：;；!！?？'"“”‘’、/\\|]+/g, '')
+    .trim();
+}
+
+/** 占位标题（“新建文件夹 (2)”“未命名案例”之类）不算真实作品名。 */
+const PLACEHOLDER_TITLE = /^(新建文件夹|未命名|untitled|image|img|dsc|screenshot|截图|案例\s*\d*)$/iu;
+
+/**
+ * 吸引力分：用于案例墙默认排序。
+ * 打分只看能自动判断的信号，不做视觉判断：
+ *   能打开的网站 > 视频作品 > 多图完整案例 > 有真实描述 > 标题不是占位名。
+ */
+export function appealScore(item) {
+  let score = 0;
+  if (String(item.href || '').trim()) score += 100;
+  if (item.video?.src) score += 80;
+  if ((item.slides?.length || 0) >= 3) score += 30;
+  if (item.description) score += 20;
+  if (!PLACEHOLDER_TITLE.test(String(item.title || '').trim())) score += 10;
+  return score;
+}
+
 /**
  * 把所有活动的「用户案例」摊平成案例列表。
+ * 同一个案例的多张截图归成一张卡：先按 caseId，再按归一后的标题合并。
  * 案例本身没有日期，分月用的是所属活动的日期；组内保持活动里的原有顺序。
  */
 export function buildCaseItems(events = []) {
@@ -61,13 +89,19 @@ export function buildCaseItems(events = []) {
   for (const event of events) {
     const gallery = event.detail?.productionGallery || [];
     const grouped = new Map();
+    // 同一个案例可能被拆成多个 caseId（历史素材没按标准整理），
+    // 所以再按「归一后的标题」找一次：找到就并进已有那张卡，不新开一张。
+    const byTitle = new Map();
     gallery.forEach((item, index) => {
       if (!item?.image) return;
       const groupKey = item.caseId || item.id || item.path || index;
+      const title = item.title || item.alt || '未命名案例';
+      const key = titleKey(title);
       const slide = { image: item.image, alt: item.alt || item.title, caption: item.title };
-      if (grouped.has(groupKey)) {
-        const group = grouped.get(groupKey);
-        if (!group.slides.some(s => s.image === item.image)) group.slides.push(slide);
+      const merged = grouped.get(groupKey) || (key ? byTitle.get(key) : null);
+      if (merged) {
+        if (!merged.slides.some(s => s.image === item.image)) merged.slides.push(slide);
+        if (key && !byTitle.has(key)) byTitle.set(key, merged);
         return;
       }
       const entry = {
@@ -90,12 +124,20 @@ export function buildCaseItems(events = []) {
         tags: Array.isArray(event.tags) ? event.tags : [],
       };
       grouped.set(groupKey, entry);
+      if (key && !byTitle.has(key)) byTitle.set(key, entry);
       items.push(entry);
     });
     // 只有视频、没有截图的案例：用视频封面当卡片图，点开去活动页看视频。
     (event.detail?.productionVideos || []).forEach((video, index) => {
       if (!video?.caseId || grouped.has(video.caseId)) return;
       const title = video.caseTitle || video.title || '未命名案例';
+      // 已经有同名截图案例时，视频只是这个案例的一件作品，不再单开一张卡。
+      const videoKey = titleKey(title);
+      const existing = videoKey ? byTitle.get(videoKey) : null;
+      if (existing) {
+        existing.video = existing.video || { src: video.src, poster: video.poster || '' };
+        return;
+      }
       const entry = {
         key: `${event.uid || event.id}-${video.caseId}`, slides: [], video: { src: video.src, poster: video.poster || '' },
         title, image: video.poster || event.image || '', alt: title,
@@ -105,11 +147,18 @@ export function buildCaseItems(events = []) {
         eventDate: event.sourceDate || '', eventCity: event.detail?.city || '', tags: Array.isArray(event.tags) ? event.tags : [],
       };
       grouped.set(video.caseId, entry);
+      if (videoKey && !byTitle.has(videoKey)) byTitle.set(videoKey, entry);
       items.push(entry);
     });
   }
   // 同月里按活动日期倒序；日期相同保持活动内原顺序（Array#sort 稳定）。
+  // 「按吸引力」排序在 groupCases 里做，这里保持时间序作为稳定基准。
   return items.sort((a, b) => String(b.eventDate).localeCompare(String(a.eventDate)));
+}
+
+/** 案例墙默认排序：吸引力从高到低，同分按日期新到旧，再按原来的活动内顺序。 */
+export function compareByAppeal(a, b) {
+  return (appealScore(b) - appealScore(a)) || String(b.eventDate).localeCompare(String(a.eventDate)) || (a.position - b.position);
 }
 
 export function tokenizeQuery(query) {

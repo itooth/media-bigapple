@@ -13,7 +13,6 @@ export default function CaseCard({ item, onOpen }) {
       <span className="event-copy">
         <strong>{item.title}</strong>
         {item.description ? <span className="case-description">{item.description}</span> : null}
-        <span className="case-source">{item.eventTitle}</span>
       </span>
     </>
   );
