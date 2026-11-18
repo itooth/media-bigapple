@@ -28,5 +28,5 @@ if (fs.existsSync(databaseFile)) {
 }
 console.log('Database ready:', await initializeDatabase({ ...options, seedDir: path.join(root, 'bootstrap') }));
 const server = createApplication(options);
-server.listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log(`BigApple Events listening on port ${server.address().port}`));
+server.listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log(`BigApple Showcase listening on port ${server.address().port}`));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));

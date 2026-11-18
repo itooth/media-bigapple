@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchImageDownload, saveImageDownload } from '../lib/downloadImage.js';
-export default function StoryViewer({ items, index, onChange, onClose, label }) {
+export default function StoryViewer({ items, index, onChange, onClose, label, coverPath, onSetCover }) {
   const dialog = useRef(null), start = useRef(null), item = items[index], video = !!item?.src && !item?.image;
   const request = useRef(null);
   const [downloadState, setDownloadState] = useState('');
+  const [coverState, setCoverState] = useState('');
   useEffect(() => {
     setDownloadState('');
+    setCoverState('');
     return () => { request.current?.abort(); request.current = null; };
   }, [item.image]);
+  const isCover = !!coverPath && !!item?.path && coverPath === item.path;
+  const saveCover = async () => {
+    if (!onSetCover || !item?.path || coverState === 'loading') return;
+    setCoverState('loading');
+    try { await onSetCover(isCover ? '' : item.path); setCoverState(''); }
+    catch { setCoverState('error'); }
+  };
   const save = async () => {
     if (request.current) return;
     const controller = new AbortController(); request.current = controller;
@@ -38,7 +47,7 @@ export default function StoryViewer({ items, index, onChange, onClose, label }) 
   const move = (step) => { if (!video && items.length > 1) onChange((index + step + items.length) % items.length); };
   return <dialog ref={dialog} className="story-viewer" aria-label={label} onCancel={(e) => { e.preventDefault(); onClose(); }}
     onKeyDown={(e) => { if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); } if (e.key === 'ArrowRight') { e.preventDefault(); move(1); } }}>
-    <div className="story-viewer-bar"><div><small>{label} · {index + 1} / {items.length}</small><h2>{item.title || item.caption || item.alt}</h2></div><div>{!video && <button className="story-save" type="button" onClick={save} disabled={downloadState === 'loading'}>{downloadState === 'loading' ? '下载中…' : '保存图片 ↓'}</button>}<button type="button" onClick={onClose} aria-label="关闭查看">×</button></div></div>
+    <div className="story-viewer-bar"><div><small>{label} · {index + 1} / {items.length}</small><h2>{item.title || item.caption || item.alt}</h2></div><div>{!video && item?.path && onSetCover ? <button className={`story-cover${isCover ? ' is-cover' : ''}`} type="button" onClick={saveCover} disabled={coverState === 'loading'} aria-pressed={isCover}>{coverState === 'loading' ? '保存中…' : isCover ? '✓ 当前封面' : '设为封面'}</button> : null}{!video && <button className="story-save" type="button" onClick={save} disabled={downloadState === 'loading'}>{downloadState === 'loading' ? '下载中…' : '保存图片 ↓'}</button>}<button type="button" onClick={onClose} aria-label="关闭查看">×</button></div></div>
     <div className="story-viewer-content" onPointerDown={(e) => { if (e.pointerType !== 'mouse') start.current = [e.clientX, e.clientY]; }} onPointerCancel={() => { start.current = null; }} onPointerUp={(e) => {
       if (!start.current) return; const [x, y] = start.current; start.current = null;
       if (Math.abs(e.clientX - x) > 40 && Math.abs(e.clientX - x) > Math.abs(e.clientY - y) * 1.3) move(e.clientX < x ? 1 : -1);

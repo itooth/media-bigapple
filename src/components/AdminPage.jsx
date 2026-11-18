@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Ban, Check, ChevronDown, Plus, Upload } from 'lucide-react';
 import logo from '../lib/brandLogo.js';
 import { api, logoToPng } from '../lib/api.js';
 import AdminLogin from './AdminLogin.jsx';
@@ -37,6 +37,36 @@ function ActivitySelect({ activities, selected, onChange, disabled }) {
 }
 
 const sorted = (items) => JSON.stringify([...items].sort());
+// 下架一场活动：从线上撤下，记录和历史都还在（下架不是删除）。
+function RemoveButton({ activity, onRemoved }) {
+  const [busy, setBusy] = useState(false);
+  async function remove() {
+    if (!window.confirm(`下架「${activity.title}」？\n\n这场活动会从网站、案例墙和代理商店面撤下，数据和图片都保留，之后可以重新发布。`)) return;
+    setBusy(true);
+    try { await api(`/api/activities/${encodeURIComponent(activity.id)}`, { method: 'DELETE' }); onRemoved(activity); }
+    catch (error) { window.alert(error.message || '下架失败，请重试'); }
+    finally { setBusy(false); }
+  }
+  return <button className="admin-text admin-danger" type="button" disabled={busy} onClick={remove}>{busy ? '下架中…' : '下架'}</button>;
+}
+function RemoveDialog({ activities, onClose, onRemoved }) {
+  const [query, setQuery] = useState('');
+  // 副本的活动标题和主场一模一样，只有 uid 不同，所以 uid 也要能搜、要显示出来。
+  const needle = query.trim().toLowerCase();
+  const matches = activities.filter((item) => !needle || [item.title, item.date, item.id].some((field) => String(field).toLowerCase().includes(needle)));
+  return <div className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="remove-title">
+    <div className="admin-modal-body">
+      <h2 id="remove-title">下架活动</h2>
+      <p>下架后这场活动不再出现在网站上，案例和照片一并撤下；服务器上的原记录和图片都保留，之后重新发布即可恢复。</p>
+      <input className="admin-search" value={query} placeholder="搜活动名称、日期或编号，例如 副本 / 2026-06-12" onChange={(event) => setQuery(event.target.value)} />
+      <ul className="admin-remove-list">{matches.length ? matches.map((item) => <li key={item.id}>
+        <div><strong>{item.title}</strong><small>{item.date} · {item.id}</small></div>
+        <RemoveButton activity={item} onRemoved={onRemoved} />
+      </li>) : <li className="admin-empty">没有匹配的活动。</li>}</ul>
+      <button className="admin-primary" type="button" onClick={onClose}>关闭</button>
+    </div>
+  </div>;
+}
 function ResellerRow({ record, activities, onDirty, onCancel, onLoginNeeded }) {
   const [saved, setSaved] = useState(record.id ? record : null);
   const [name, setName] = useState(record.name);
@@ -105,7 +135,9 @@ function ResellerRow({ record, activities, onDirty, onCancel, onLoginNeeded }) {
 
 export default function AdminPage({ onBack, setNavigationGuard }) {
   const [rows, setRows] = useState([]); const [activities, setActivities] = useState([]);
+  const [removed, setRemoved] = useState([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [login, setLogin] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const dirtyRows = useRef(new Map());
   const hasLoaded = useRef(false);
   const onDirty = useCallback((key, dirty) => { if (dirty) dirtyRows.current.set(key, true); else dirtyRows.current.delete(key); }, []);
@@ -117,7 +149,7 @@ export default function AdminPage({ onBack, setNavigationGuard }) {
     } catch (error) { if (error.status === 401) setLogin(true); else setError(error.message); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { load(); document.title = '代理商管理 · BigApple Events'; }, [load]);
+  useEffect(() => { load(); document.title = '代理商管理 · BigApple Showcase'; }, [load]);
   useEffect(() => {
     const leave = (event) => { if (dirtyRows.current.size) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', leave); return () => window.removeEventListener('beforeunload', leave);
@@ -139,7 +171,10 @@ export default function AdminPage({ onBack, setNavigationGuard }) {
     </div></header>
     <main className="shell admin-main">
       <div className="admin-toolbar"><div><h1>代理商管理</h1><p>活动默认全选，取消不需要展示的活动，再保存。</p></div>
-        <button className="admin-primary" disabled={loading || login || !!error} onClick={() => setRows([...rows, { clientKey: crypto.randomUUID(), name: '', logoUrl: '', activityIds: activities.map((a) => a.id) }])}><Plus size={18} />新增代理商</button>
+        <div className="admin-toolbar-actions">
+          <button className="admin-text admin-danger" type="button" disabled={loading || login || !activities.length} onClick={() => setRemoving(true)}><Ban size={16} />下架活动</button>
+          <button className="admin-primary" disabled={loading || login || !!error} onClick={() => setRows([...rows, { clientKey: crypto.randomUUID(), name: '', logoUrl: '', activityIds: activities.map((a) => a.id) }])}><Plus size={18} />新增代理商</button>
+        </div>
       </div>
       {loading ? <p role="status">正在读取配置…</p> : error ? <div role="alert" className="admin-error">{error} <button className="admin-text" onClick={load}>重试</button></div> : hasLoaded.current && <div className="reseller-table">
         <div className="reseller-table-head" aria-hidden="true"><span>编号</span><span>Logo</span><span>网站名称</span><span>展示活动</span><span>操作</span></div>
@@ -147,6 +182,8 @@ export default function AdminPage({ onBack, setNavigationGuard }) {
       </div>}
       <p className="admin-footnote">保存后，代理商链接立即更新。勾选一场活动，即包含全部照片与作品。</p>
     </main>
+    {removing ? <RemoveDialog activities={activities} onClose={() => setRemoving(false)} onRemoved={(activity) => { setActivities((current) => current.filter((item) => item.id !== activity.id)); setRemoved((current) => [...current, activity]); setRows((current) => current.map((row) => ({ ...row, activityIds: row.activityIds.filter((id) => id !== activity.id) }))); }} /> : null}
+    {removed.length ? <div className="admin-toast" role="status">已下架 {removed.map((item) => `「${item.title}」`).join('、')}，刷新网站即可看到效果。</div> : null}
     {login && <AdminLogin onClose={() => { if (hasLoaded.current) setLogin(false); else onBack(); }} onSuccess={() => { setLogin(false); if (!hasLoaded.current) load(); }} />}
   </div>;
 }

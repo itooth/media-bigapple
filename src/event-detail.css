@@ -25,3 +25,7 @@
 .story-viewer-tip { flex-shrink: 0; }
 
 .case-image-count { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 5px; background: #191718cc; color: white; font-size: 12px; }
+.story-viewer-bar .story-cover{font:inherit;font-size:12px;width:auto;white-space:nowrap;padding:0;color:inherit;background:transparent;border:0;cursor:pointer}
+.story-viewer-bar .story-cover.is-cover{color:#2f7a52;font-weight:600;cursor:default}
+.story-viewer-bar .story-cover:disabled{opacity:.65;cursor:wait}
+@media(max-width:650px){.story-viewer-bar .story-cover{font-size:10px}}

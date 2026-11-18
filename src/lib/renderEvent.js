@@ -43,12 +43,13 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
       : /\.png$/iu.test(clean) ? clean.replace(/\.png$/iu, '.jpg') : '';
     return alternate ? (urls.get(alternate) || '') : '';
   };
-  const imageItem = (event, asset, index, kind) => ({ id: `${event.id}-${kind}-${index}`, image: mediaUrl(event.id, asset.path), alt: captionOf(asset.name), caption: captionOf(asset.name), position: index });
+  // path 一并带出去：后台在照片查看器里点「设为封面」时，要拿它指回索引里那一张。
+  const imageItem = (event, asset, index, kind) => ({ id: `${event.id}-${kind}-${index}`, image: mediaUrl(event.id, asset.path), alt: captionOf(asset.name), caption: captionOf(asset.name), position: index, path: asset.path });
 
   // 活动图一律从媒体索引取（索引由云端清单生成，每条都带云端 url）。
   // 索引里没有的图不会渲染，见 docs/media-contract.md 硬规则 3。
   const currentAssets = assets;
-  const selection = selectActivityPhotos(currentAssets);
+  const selection = selectActivityPhotos(currentAssets, record.coverPath || '');
   const sortedAssets = selection.sorted;
   const activity = sortedAssets.map((asset, index) => imageItem(record, asset, index, 'activity'));
   const homeActivity = selection.highlights.map((asset, index) => imageItem(record, asset, index, 'home'));
@@ -114,7 +115,7 @@ export function renderEvent({ record, assets = [], cases = [], social = [], aich
   detail.productionGallery = productionGallery;
   // id 用于查云端媒体；folder 才是唯一标识（素材库里存在同一 id 的副本文件夹，
   // 只拿 id 当 React key 会撞车，列表在切换筛选时可能渲染错乱）。
-  return { id: record.id, uid: record.folder || record.id, ...(record.slug !== undefined ? { slug: record.slug } : {}), partner: record.title, description: detail.summary, image: selection.cover ? mediaUrl(record.id, selection.cover.path) : caseItems[0]?.image || '', alt: record.title, sourceDate: record.date, tags: Array.isArray(record.tags) ? record.tags : [], detail };
+  return { id: record.id, uid: record.folder || record.id, ...(record.slug !== undefined ? { slug: record.slug } : {}), partner: record.title, description: detail.summary, image: selection.cover ? mediaUrl(record.id, selection.cover.path) : caseItems[0]?.image || '', alt: record.title, sourceDate: record.date, tags: Array.isArray(record.tags) ? record.tags : [], ...(record.coverPath ? { coverPath: record.coverPath } : {}), detail };
 }
 
 export const sortEvents = (events) => events.sort((a, b) => String(b.sourceDate).localeCompare(String(a.sourceDate)));

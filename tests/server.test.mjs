@@ -15,7 +15,7 @@ const events = [
 const password = 'test-only-private-password';
 async function fixture(t, extra = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bigapple-test-'));
-  fs.writeFileSync(path.join(dir, 'index.html'), '<html><head><title>BigApple Events</title><meta name="description" content="BigApple Events 合作活动档案" /></head><body>test client</body></html>');
+  fs.writeFileSync(path.join(dir, 'index.html'), '<html><head><title>BigApple Showcase</title><meta name="description" content="BigApple Showcase 合作活动档案" /></head><body>test client</body></html>');
   let server;
   async function start() {
     server = createApplication({ events, dataDir: dir, distDir: dir, adminPassword: password, ...extra });
@@ -97,7 +97,7 @@ test('branded HTML uses escaped current branding and never falls back on a missi
   const html = await (await f.request('/api/sites/6024/page')).text();
   assert.match(html, /<title>Polo &lt;script&gt;&amp;<\/title>/);
   assert.match(html, /<meta name="brand-site" content="true">/);
-  assert.equal(html.includes('BigApple Events'), false);
+  assert.equal(html.includes('BigApple Showcase'), false);
   assert.equal((await f.request('/api/sites/9999/page')).status, 404);
 });
 
@@ -293,4 +293,49 @@ test('a press report can be added from the admin session with a screenshot, and 
   assert.equal((await f.request(url, { method: 'POST', body: { href: 'https://example.test/a', outlet: '读特', title: '改过的标题' } })).status, 201);
   const detail = await (await f.request(`/api/site?event=${encodeURIComponent(newSource.uid)}`)).json();
   assert.deepEqual(detail.events[0].detail.media.map((m) => [m.outlet, m.title, m.image]), [['读特', '改过的标题', image]]);
+});
+
+test('an admin can pick the event cover from the album, and can clear it back to the filename rule', async (t) => {
+  const f = await fixture(t, { isTeamMember: async (headers) => headers['x-bigapple-publisher-id'] === 'pub_team' });
+  const url = `/api/activities/${encodeURIComponent(newSource.uid)}`;
+  assert.equal((await f.request(url, { method: 'PUT', headers: teamHeaders, body: { source: newSource } })).status, 201);
+  // 封面默认取文件名里带「封面」标记的那张。
+  let site = await (await f.request('/api/site')).json();
+  assert.equal(site.events[0].image, 'https://media.bigapple.app/10000_封面_合照.jpg');
+  assert.equal(site.events[0].coverPath, undefined);
+
+  const coverUrl = `${url}/cover`;
+  const setCover = (path, headers = teamHeaders) => f.request(coverUrl, { method: 'POST', headers, body: { path } });
+  // 没登录、也不是团队成员：拒绝。
+  assert.equal((await setCover('01_活动照片/10000_封面_合照.jpg', { 'Content-Type': 'application/json' })).status, 401);
+
+  const picked = await setCover('01_活动照片/10000_封面_合照.jpg');
+  assert.equal(picked.status, 200);
+  assert.equal((await picked.json()).coverPath, '01_活动照片/10000_封面_合照.jpg');
+
+  // 索引里没有的路径不能当封面。
+  assert.equal((await setCover('01_活动照片/不存在.jpg')).status, 400);
+
+  // 换一张：图片和 coverPath 一起变，源记录其他字段原样保留。
+  await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg')] } });
+  const changed = await setCover('01_活动照片/09000_讲解.jpg');
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).image, 'https://media.bigapple.app/09000_讲解.jpg');
+  site = await (await f.request('/api/site')).json();
+  assert.equal(site.events[0].image, 'https://media.bigapple.app/09000_讲解.jpg');
+  assert.equal(site.events[0].coverPath, '01_活动照片/09000_讲解.jpg');
+  assert.equal(site.events[0].detail.gallery.length, 2);
+  assert.equal(site.events[0].detail.title, '新活动');
+
+  // 清空就回到原来的规则。
+  assert.equal((await setCover('')).status, 200);
+  site = await (await f.request('/api/site')).json();
+  assert.equal(site.events[0].image, 'https://media.bigapple.app/10000_封面_合照.jpg');
+  assert.equal(site.events[0].coverPath, undefined);
+
+  // 管理员会话同样可以设，不必带团队部署身份。
+  const pickedAgain = await setCover('01_活动照片/09000_讲解.jpg', {});
+  assert.equal(pickedAgain.status, 401);
+  await f.login();
+  assert.equal((await setCover('01_活动照片/09000_讲解.jpg', {})).status, 200);
 });

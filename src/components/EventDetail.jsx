@@ -77,9 +77,11 @@ function BulkDownload({ view }) {
 }
 
 export default function EventDetail({ event, onBack }) {
-  const view = useMemo(() => eventPresentation(event), [event]);
+  // 换封面后先用接口返回的新图覆盖，首屏轮播立刻更新，不必整页刷新。
+  const [cover, setCover] = useState({ path: event.coverPath || '', image: '' });
+  const view = useMemo(() => eventPresentation(cover.image ? { ...event, image: cover.image } : event), [event, cover.image]);
   const [viewer, setViewer] = useState(null), [heroIndex, setHeroIndex] = useState(0), [playing, setPlaying] = useState(true);
-  // 只有后台登录过的人才看到「+ 添加报道」；普通访客多一次请求都不发。
+  // 只有后台登录过的人才看到「+ 添加报道」和「设为封面」；普通访客多一次请求都不发。
   const [admin, setAdmin] = useState(false), [pressOpen, setPressOpen] = useState(false);
   useEffect(() => {
     let live = true;
@@ -90,6 +92,12 @@ export default function EventDetail({ event, onBack }) {
   }, []);
   const heroArea = useRef(null), heroSwipe = useSwipe((step) => setHeroIndex((n) => (n + step + view.hero.length) % view.hero.length));
   const open = (items, index, label) => setViewer({ items, index, label });
+  // 换封面后在查看器里就能看到结果：不整页刷新，只把新封面图交给首屏。
+  const saveCover = async (path) => {
+    const { api } = await import('../lib/api.js');
+    const result = await api(`/api/activities/${encodeURIComponent(event.uid || event.id)}/cover`, { method: 'POST', body: JSON.stringify({ path }) });
+    setCover({ path: result.coverPath || '', image: result.image || '' });
+  };
   const worksExist = view.groups.length || view.websites.length || view.workVideos.length;
   useEffect(() => {
     if (view.hero.length < 2 || !playing || viewer) return undefined;
@@ -138,7 +146,8 @@ export default function EventDetail({ event, onBack }) {
       <div>{view.resources.map((item) => <a key={item.id} href={item.href} target="_blank" rel="noreferrer">{item.title}<span>↗</span></a>)}</div>
     </details> : null}
     <footer className="story-footer"><span>{view.title}</span><a href="#story-top" onClick={jumpToSection}>回到顶部 ↑</a></footer>
-    {viewer && <StoryViewer {...viewer} onChange={(index) => setViewer((current) => ({ ...current, index }))} onClose={() => setViewer(null)} />}
+    {viewer && <StoryViewer {...viewer} onChange={(index) => setViewer((current) => ({ ...current, index }))} onClose={() => setViewer(null)}
+      {...(admin && viewer.label === '现场相册' ? { coverPath: cover.path, onSetCover: saveCover } : {})} />}
     {pressOpen ? <PressForm uid={event.uid || event.id} onClose={() => setPressOpen(false)} onSaved={() => { setPressOpen(false); window.location.reload(); }} /> : null}
   </main></div>;
 }

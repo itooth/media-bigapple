@@ -57,7 +57,7 @@ const mdUrl = (origin, event) => `${origin}/agent/events/${encodeURIComponent(sl
 
 export function renderIndex(events, origin, notes = {}) {
   const lines = [
-    '# BigApple Events 活动案例集', '',
+    '# BigApple Showcase 活动案例集', '',
     `> BigApple 与合作方举办的 AI 活动档案，共 ${events.length} 场，含现场照片、学员作品、视频和媒体报道。本文件是给 AI 助手读的文字版目录：不用运行网页，也不用下载图片。`, '',
     '## 怎么读', '',
     `- 单场活动的全部素材（每张图的描述和链接）：${origin}/agent/events/<slug>.md ，照片多时用 ?page=2 翻页`,
@@ -146,7 +146,7 @@ function caseRecord(item, origin) {
 export function renderCasesDoc(events, origin) {
   const { items } = caseIndex(events);
   const lines = [
-    '# BigApple Events 全部案例', '',
+    '# BigApple Showcase 全部案例', '',
     `> 共 ${items.length} 个案例（学员和合作方在活动里做出的作品：网站、小程序、海报、视频等），按所属活动日期从新到旧。`
       + `搜索：${origin}/api/agent/search?q=关键词 ；返回目录：${origin}/llms.txt`,
   ];
@@ -199,7 +199,7 @@ export function agentHtml(events, origin, pathname) {
   const body = event
     ? `<h1>${escapeHtml(event.detail?.title || event.partner)}</h1><p>${escapeHtml(event.description)}</p>`
       + `<p>给 AI 助手：本场活动全部照片、作品和视频的文字说明与图片链接见 ${link(mdUrl(origin, event), mdUrl(origin, event))}，全站目录见 ${link(`${origin}/llms.txt`, `${origin}/llms.txt`)}。</p>`
-    : `<h1>BigApple Events 活动案例集</h1><p>给 AI 助手：本页由脚本渲染。文字版目录见 ${link(`${origin}/llms.txt`, `${origin}/llms.txt`)}；`
+    : `<h1>BigApple Showcase 活动案例集</h1><p>给 AI 助手：本页由脚本渲染。文字版目录见 ${link(`${origin}/llms.txt`, `${origin}/llms.txt`)}；`
       + `全部案例 ${link(`${origin}/agent/cases.md`, `${origin}/agent/cases.md`)}；搜索接口 ${escapeHtml(origin)}/api/agent/search?q=关键词；单场活动文档如下。</p><ul>`
       + events.map((e) => `<li>${link(mdUrl(origin, e), `${clean(e.sourceDate)} ${clean(e.partner)}`)}：${escapeHtml(clean(e.description))}</li>`).join('') + '</ul>';
   return `<div class="agent-index" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">${body}</div>`;

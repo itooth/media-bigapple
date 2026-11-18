@@ -6,7 +6,7 @@ import StoryViewer from './components/StoryViewer.jsx';
 import MonthSection from './components/MonthSection.jsx';
 import SearchPanel from './components/SearchPanel.jsx';
 import useRoute from './hooks/useRoute.js';
-import { LayoutGrid, Settings, SlidersHorizontal } from 'lucide-react';
+import { Settings, SlidersHorizontal } from 'lucide-react';
 import { api } from './lib/api.js';
 import { eventPath, findEvent } from './lib/eventSlug.js';
 import { groupCases, groupEvents } from './lib/archive.js';
@@ -80,7 +80,6 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
   const searchCases = useMemo(() => createCaseSearch(searchPool), [searchPool]);
   const [toast, setToast] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [contentOpen, setContentOpen] = useState(false);
   const [casePreview, setCasePreview] = useState(null);
   const activeEvent = findEvent(allEvents, route.eventId);
   // 旧链接（中文文件夹名、旧编号）打开后把地址栏换成 ASCII 短链，用户从地址栏复制出去也能直接点开。
@@ -150,21 +149,18 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
     : isCaseMode ? allCases.length : allEvents.length;
 
   useEffect(() => {
-    if (!filterOpen && !contentOpen) return undefined;
+    if (!filterOpen) return undefined;
     const close = (event) => {
-      if (!event.target.closest('.archive-filter')) {
-        setFilterOpen(false);
-        setContentOpen(false);
-      }
+      if (!event.target.closest('.archive-filter')) setFilterOpen(false);
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
-  }, [filterOpen, contentOpen]);
+  }, [filterOpen]);
 
   useEffect(() => {
     if (loading) return;
     const title = activeEvent?.detail.title;
-    const name = brand?.name || 'BigApple Events';
+    const name = brand?.name || 'BigApple Showcase';
     document.title = title ? `${title} - ${name}` : name;
   }, [loading, activeEvent, brand]);
 
@@ -215,21 +211,10 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
 
   const selectTag = (tag) => {
     setFilterOpen(false);
-    setContentOpen(false);
     setSearchOpen(false);
     setActiveNav('events');
     const suffix = tag ? `/filter/${encodeURIComponent(tag)}` : '';
-    navigate(isCaseMode ? `/cases${suffix}` : suffix || '/');
-  };
-
-  const selectContent = (mode) => {
-    setContentOpen(false);
-    setFilterOpen(false);
-    if (mode === 'cases') {
-      navigate(activeTag ? `/cases/filter/${encodeURIComponent(activeTag)}` : '/cases');
-    } else {
-      navigate(activeTag ? `/filter/${encodeURIComponent(activeTag)}` : '/');
-    }
+    navigate(suffix || '/');
   };
 
   const openCase = (item) => {
@@ -307,36 +292,13 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
 
       {!searching && (route.page === 'archive' || route.page === 'cases') ? (
         <main className="event-archive shell" id="events" tabIndex="-1">
-          <div className="archive-toolbar">
-            <div className="archive-filter">
-              <button
-                className={`archive-filter-button ${isCaseMode ? 'is-active' : ''}`}
-                type="button"
-                aria-expanded={contentOpen}
-                onClick={() => { setContentOpen((current) => !current); setFilterOpen(false); }}
-              >
-                <LayoutGrid aria-hidden="true" />
-                <span>{isCaseMode ? '内容 · 案例' : '内容 · 活动'}</span>
-              </button>
-              {contentOpen ? (
-                <div className="archive-filter-panel">
-                  <button className={isCaseMode ? '' : 'is-selected'} type="button" onClick={() => selectContent('events')}>
-                    <span>活动</span>
-                    <small>{allEvents.length}</small>
-                  </button>
-                  <button className={isCaseMode ? 'is-selected' : ''} type="button" onClick={() => selectContent('cases')}>
-                    <span>案例</span>
-                    <small>{allCases.length}</small>
-                  </button>
-                </div>
-              ) : null}
-            </div>
+          {isCaseMode ? null : <div className="archive-toolbar">
             <div className="archive-filter">
               <button
                 className={`archive-filter-button ${activeTag ? 'is-active' : ''}`}
                 type="button"
                 aria-expanded={filterOpen}
-                onClick={() => { setFilterOpen((current) => !current); setContentOpen(false); }}
+                onClick={() => setFilterOpen((current) => !current)}
               >
                 <SlidersHorizontal aria-hidden="true" />
                 <span>{activeTag ? `活动类型 · ${activeTag}` : '活动类型'}</span>
@@ -344,8 +306,8 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
               {filterOpen ? (
                 <div className="archive-filter-panel">
                   <button className={activeTag ? '' : 'is-selected'} type="button" onClick={() => selectTag(null)}>
-                    <span>{isCaseMode ? '全部案例' : '全部活动'}</span>
-                    <small>{isCaseMode ? allCases.length : allEvents.length}</small>
+                    <span>全部活动</span>
+                    <small>{allEvents.length}</small>
                   </button>
                   {tagOptions.map(([tag, count]) => (
                     <button className={activeTag === tag ? 'is-selected' : ''} type="button" key={tag} onClick={() => selectTag(tag)}>
@@ -356,7 +318,7 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
                 </div>
               ) : null}
             </div>
-          </div>
+          </div>}
           {isCaseMode ? (
             <>
               <nav className="case-tabs" aria-label="案例分类">
@@ -373,8 +335,8 @@ function Archive({ route, navigate, site, onAdmin, loading, error, onRetry, cata
                   </button>
                 ))}
                 <div className="case-sort">
-                  <button className={caseSort === 'appeal' ? 'is-selected' : ''} type="button" aria-pressed={caseSort === 'appeal'} onClick={() => goCasesQuery({ sort: 'appeal' })}>人气</button>
-                  <button className={caseSort === 'latest' ? 'is-selected' : ''} type="button" aria-pressed={caseSort === 'latest'} onClick={() => goCasesQuery({ sort: 'latest' })}>活动</button>
+                  <button className={caseSort === 'appeal' ? 'is-selected' : ''} type="button" aria-pressed={caseSort === 'appeal'} onClick={() => goCasesQuery({ sort: 'appeal' })}>精选</button>
+                  <button className={caseSort === 'latest' ? 'is-selected' : ''} type="button" aria-pressed={caseSort === 'latest'} onClick={() => goCasesQuery({ sort: 'latest' })}>时间线</button>
                 </div>
               </nav>
               {visibleCases.length > 0 ? (

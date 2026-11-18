@@ -35,7 +35,7 @@ export default function Header({ activeNav, onNavChange, onSearchOpen, onBrandCl
       <div className="header-inner shell">
         <button className={`brand-button${brand ? ' has-custom-brand' : ''}`} type="button" aria-label="返回活动列表" onClick={onBrandClick ?? (() => selectNav('events'))}>
           {brand && !brand.logoUrl ? <span className="brand-placeholder" aria-hidden="true">{brand.name.slice(0, 1)}</span> : <img src={brand ? brand.logoUrl : logo} alt={`${brand?.name || 'BigApple'} 标志`} width="40" height="40" />}
-          <span>{brand?.name || 'BigApple Events'}</span>
+          <span>{brand?.name || 'BigApple Showcase'}</span>
         </button>
 
         <nav className="desktop-nav" aria-label="主导航">

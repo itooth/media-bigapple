@@ -176,6 +176,28 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         console.info('[api/activities] appended', { uid, actor, assets: body.assets?.length || 0, cases: body.cases?.length || 0, videos: body.videos?.length || 0 });
         return send(res, 200, { uid, created: false, activities: store.events().length });
       }
+      // 换封面（页面上的「设为封面」）。只改 record.coverPath，其余字段原样保留。
+      // 传空 path 等于恢复原来的规则（「封面」标记 → 评分最高那张）。
+      const coverMatch = pathname.match(/^\/api\/activities\/([^/]+)\/cover$/);
+      if (coverMatch && method === 'POST') {
+        const uid = decodeURIComponent(coverMatch[1]);
+        const session = getSession(req);
+        let actor;
+        if (session) { requireMutation(req); actor = `admin:${session.key.slice(0, 8)}`; }
+        else actor = await requireTeamMember(req);
+        const body = await activityBody(req);
+        const current = store.source(uid);
+        if (!current) throw failure(404, '服务器上还没有这场活动');
+        const path = String(body?.path || '');
+        if (path && !current.assets?.some((asset) => asset.path === path)) throw failure(400, '这张照片不在本场活动的索引里');
+        const record = { ...current.record };
+        if (path) record.coverPath = path; else delete record.coverPath;
+        const next = { ...current, record };
+        const event = renderSource(uid, next);
+        store.upsertActivity(next, actor);
+        console.info('[api/activities] cover set', { uid, actor, path });
+        return send(res, 200, { uid, coverPath: path, image: event.image });
+      }
       // 追加一条报道（页面上的「+ 添加报道」）。手填字段，不走自动抓取。
       const pressMatch = pathname.match(/^\/api\/activities\/([^/]+)\/press$/);
       if (pressMatch && method === 'POST') {

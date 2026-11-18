@@ -1,4 +1,4 @@
-# BigApple Events Archive
+# BigApple Showcase Archive
 
 Vite + React 活动案例集，配套一个 Node.js 后端。活动内容统一维护，管理员可以为不同代理商配置 Logo、网站名称和展示活动。
 

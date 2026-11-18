@@ -99,6 +99,6 @@ test('server exposes llms.txt, event documents, search and the injected page', a
   assert.equal((await (await fetch(`${base}/api/agent/search?q=${encodeURIComponent('活动甲')}`)).json()).events.length, 1);
   assert.match(await (await fetch(`${base}/`)).text(), /<div id="app"><div class="agent-index"/);
   const cases = await fetch(`${base}/agent/cases.md`);
-  assert.equal(cases.status, 200); assert.match(await cases.text(), /^# BigApple Events 全部案例/);
+  assert.equal(cases.status, 200); assert.match(await cases.text(), /^# BigApple Showcase 全部案例/);
   assert.deepEqual((await (await fetch(`${base}/api/agent/search?q=x`)).json()).cases, []);
 });
