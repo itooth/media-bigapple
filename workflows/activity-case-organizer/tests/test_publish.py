@@ -89,27 +89,6 @@ class PreflightChecksTests(unittest.TestCase):
         # 不应抛错：未选中的素材即使没就绪也不挡发布
         publish_module.check_media_ready(media_map)
 
-    def test_missing_confirmation_file_raises(self):
-        with self.assertRaises(publish_module.PublishError) as ctx:
-            publish_module.check_publish_confirmation(self.root)
-        self.assertIn('共享硬盘', str(ctx.exception))
-
-    def test_preview_approval_not_needed_to_build_data(self):
-        # Preview approval happens later on staging; only the shared-disk backup is required here.
-        self.write_confirmation(previewApprovedAt=None)
-        publish_module.check_publish_confirmation(self.root)
-
-    def test_confirmation_missing_shared_disk_backup_raises(self):
-        self.write_confirmation(sharedDiskBackup={'location': '', 'confirmedAt': ''})
-        with self.assertRaises(publish_module.PublishError) as ctx:
-            publish_module.check_publish_confirmation(self.root)
-        self.assertIn('共享硬盘', str(ctx.exception))
-
-    def test_confirmation_complete_passes(self):
-        self.write_confirmation()
-        backup = publish_module.check_publish_confirmation(self.root)
-        self.assertEqual(backup['location'], '/Volumes/备份盘/活动')
-
 
 class SelectedFilterTests(unittest.TestCase):
     """只有 selected 且 website-ready 的素材才进 web 临时目录。"""
@@ -199,15 +178,6 @@ class PublishSubprocessMockTests(unittest.TestCase):
                 publish_module.publish(self.activity_root, self.repo, self.web_root, 'app', dry_run=True)
             mocked_run.assert_not_called()
 
-    def test_publish_stops_before_any_subprocess_when_confirmation_missing(self):
-        write_json(self.activity_root / 'manifest.json', make_manifest())
-        write_json(self.activity_root / '媒体映射.json', {'media': [make_media_item('01_活动照片/a.jpg')]})
-        with mock.patch('subprocess.run') as mocked_run:
-            with self.assertRaises(publish_module.PublishError) as ctx:
-                publish_module.publish(self.activity_root, self.repo, self.web_root, 'app', dry_run=True)
-            mocked_run.assert_not_called()
-        self.assertIn('共享硬盘', str(ctx.exception))
-
 
 class CaseAndIdChecksTests(unittest.TestCase):
     def setUp(self):
@@ -216,10 +186,10 @@ class CaseAndIdChecksTests(unittest.TestCase):
         self.root = Path(temporary.name).resolve() / '活动'
         self.root.mkdir()
 
-    def add_case(self, folder, images, intro='一句作品介绍'):
+    def add_case(self, folder, images, intro='一句作品介绍', detail='面向班主任的学情看板，汇总周测均分和作业完成率，可按班级查看。'):
         case = self.root / '02_案例' / folder
         (case / '截图').mkdir(parents=True)
-        (case / '说明.md').write_text(f'## 案例名称\n\nx\n\n## 案例简介\n\n{intro}\n\n## 案例网址\n\n待确认\n', encoding='utf-8')
+        (case / '说明.md').write_text(f'## 案例名称\n\nx\n\n## 案例简介\n\n{intro}\n\n## 详细说明\n\n{detail}\n\n## 案例网址\n\n待确认\n', encoding='utf-8')
         for name in images:
             (case / '截图' / name).write_bytes(b'x')
         return [make_media_item(f'02_案例/{folder}/截图/{n}') for n in images]
@@ -249,6 +219,12 @@ class CaseAndIdChecksTests(unittest.TestCase):
         with self.assertRaises(publish_module.PublishError) as ctx:
             self.check(media)
         self.assertIn('请向实习生要一句作品介绍', str(ctx.exception))
+
+    def test_case_needs_a_detail_paragraph(self):
+        media = self.add_case('首页01_苏兰', ['a.png'], detail='太短')
+        with self.assertRaises(publish_module.PublishError) as ctx:
+            self.check(media)
+        self.assertIn('详细说明', str(ctx.exception))
 
     def test_activity_id_must_not_be_uuid(self):
         with self.assertRaises(publish_module.PublishError):

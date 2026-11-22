@@ -9,7 +9,8 @@
   追加（--append）PATCH /api/activities/<uid>：只把这批照片/案例并进服务器上已有的活动
 不部署、不 commit、不 push；网站工程里 src/data 的改动是生成过程的副产物，不用提交。
 
-前提：归档已 mirror 过（存在媒体映射.json），且已用 release_gate.py backup 记录原件已复制到团队共享硬盘。
+前提：归档已 mirror 过（存在媒体映射.json）。写服务器前核对素材地址；写正式站时把完整档案（全部原件 + 整理记录）传到云端并逐个核对；
+写入前后自动对账（reconcile.py），对不上会报错并给出退回办法。
 
 用法：
   publish.py <活动归档目录> --repo <网站工程> --web-root <mirror 输出根> --app media-staging   # 测试站
@@ -31,7 +32,8 @@ import urllib.request
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from release_gate import require_backup  # noqa: E402
+import cloud_archive  # noqa: E402
+import reconcile  # noqa: E402
 import checks  # noqa: E402  唯一一套记录检查，audit.py / repair.py 也用它
 
 REQUIRED_MANIFEST_FIELDS = ("title", "date", "id")
@@ -40,6 +42,7 @@ DEFAULT_APP = "bigapple-onboarding-course"
 SITE_FOR_APP = {"media-staging": "https://media-staging.bigapple.work"}
 PRODUCTION_SITE = "https://media.bigapple.work"
 DEPLOY_SKILL_ID = "sk_405931e4-67f2-494f-aaca-8081885f54e5"
+CASE_DETAIL_MIN = 20  # 作品详细说明的最少字数：一两句话讲清是什么、给谁用、能做什么
 ACTIVITY_ID_PATTERN = re.compile(r"^\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 CASE_DIR_PATTERN = re.compile(r"^(?:首页\d{2}_.+|\d{5}_.+)")
 COLLECTION_DIRS = ("案例集合材料", "案例素材", "原案例素材")
@@ -78,14 +81,6 @@ def check_media_ready(media_map):
         sample = "、".join(not_ready[:5])
         more = f" 等共 {len(not_ready)} 条" if len(not_ready) > 5 else ""
         raise PublishError(f"以下已选中素材尚未就绪（status 不是 website-ready）：{sample}{more}")
-
-
-def check_publish_confirmation(activity_root):
-    """Building site data needs the originals on the team shared disk; preview approval comes later, on staging."""
-    try:
-        return require_backup(activity_root)
-    except ValueError as exc:
-        raise PublishError(str(exc)) from exc
 
 
 def selected_website_ready_media(media_map):
@@ -132,6 +127,20 @@ def deploy_skill_dir():
         if candidate and (Path(candidate) / "bigapple" / "metadata.json").is_file():
             return Path(candidate).resolve()
     raise PublishError("找不到「APP 部署专员」Skill，请先在技能页安装它")
+
+
+def check_deploy_skill_current():
+    """上传前先问一次服务器：部署专员版本够不够。不够就在这里停，而不是传到一半每个文件都报 426。"""
+    version = deploy_skill_version()
+    request = urllib.request.Request(f"{cloud_archive.API}/api/skill-policies/{DEPLOY_SKILL_ID}",
+                                     headers={"x-bigapple-skill-id": DEPLOY_SKILL_ID, "x-bigapple-skill-version": version})
+    try:
+        urllib.request.urlopen(request, timeout=30).close()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 426:
+            raise PublishError(f"「APP 部署专员」{version} 版本过旧，服务器已不接受：请在 BigApple 技能页更新它后重跑") from exc
+    except urllib.error.URLError as exc:
+        raise PublishError(f"连不上 BigApple 服务器：{exc.reason}") from exc
 
 
 def deploy_skill_version():
@@ -257,6 +266,10 @@ def check_cases(activity_root, media_map):
         title = case_title(name)
         if case_intro(case_dir) in PLACEHOLDER_INTRO:
             problems.append(f"案例「{title}」的说明.md 里「案例简介」为空或「待补充」，请向实习生要一句作品介绍")
+        detail = (checks.readme_section((case_dir / "说明.md").read_text(encoding="utf-8"), "详细说明") or "").strip() if (case_dir / "说明.md").is_file() else ""
+        if len(detail) < CASE_DETAIL_MIN:
+            problems.append(f"案例「{title}」的说明.md 缺「## 详细说明」（至少 {CASE_DETAIL_MIN} 字）：写清它是什么、给谁用、能做什么，"
+                            "以后的人和 AI 靠这段了解作品，不用重新看图；只写看得到或对方提供的事实")
         images = case_images(case_dir)
         if not images and any(p.is_file() and p.suffix.lower() in VIDEO_SUFFIXES and p.relative_to(activity_root).as_posix() in ready for p in (case_dir / "视频").rglob("*")):
             continue
@@ -391,7 +404,6 @@ def run_preflight_checks(activity_root, manifest, media_map, snapshot_loader=Non
     check_manifest(manifest)
     folder_name = manifest.get("sourceFolder") or Path(activity_root).name
     check_media_ready(media_map)
-    check_publish_confirmation(activity_root)
     check_cases(activity_root, media_map)
     check_similar_photos(activity_root, media_map)
     check_selection(activity_root, media_map)
@@ -637,6 +649,8 @@ def publish(activity_root, repo, web_root, app, dry_run, append=False):
         if copied == 0:
             raise PublishError("没有任何 selected 且 website-ready 的素材可发布。")
 
+        if not dry_run:
+            check_deploy_skill_current()
         run_upload(repo, web_staging_root, activity_folder_name, app, dry_run)
         run_build_index_and_build(repo, library_staging_root, web_staging_root)
 
@@ -659,8 +673,24 @@ def publish(activity_root, repo, web_root, app, dry_run, append=False):
         print(label)
         print(f"dry-run：没有写入 {site}")
         return
+    problems = reconcile.check_urls(source, app)
+    if problems:
+        raise PublishError("素材地址核对没通过，没有写入服务器：\n- " + "\n- ".join(problems))
+    headers = deployment_headers()
+    try:
+        if site == PRODUCTION_SITE:
+            # 完整档案（全部原件 + 整理记录）上云并逐个核对；指针写进这场的记录，之后任何人都能从服务器找到原件
+            pointer, _ = cloud_archive.upload(activity_root, app, headers)
+            if not append:
+                source["archive"] = {"manifest": pointer["manifest"], "files": pointer["files"]}
+    except cloud_archive.CloudError as exc:
+        raise PublishError(f"完整档案上云没完成，没有写入服务器：{exc}") from exc
+    history = reconcile.start(activity_root, manifest["id"], app, site, activity_id, headers)
     result = write_activity(site, source, append)
-    print(f"已写入 {site}：{mode}，网站现在共 {result.get('activities')} 场活动")
+    problems = reconcile.finish(history, headers, replace=not append, expected=None if append else expected)
+    if problems:
+        raise PublishError("已写入，但写入后的对账没通过，请立即核对：\n- " + "\n- ".join(problems) + "\n" + reconcile.rollback_hint(history))
+    print(f"已写入 {site}：{mode}，网站现在共 {result.get('activities')} 场活动；对账通过（其他活动未变，原有内容未少），过程留在 {history}")
     print(f"打开查看：{site}/events/{urllib.parse.quote(activity_id)}")
 
 

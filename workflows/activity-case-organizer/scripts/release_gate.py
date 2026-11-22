@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Record and check the two release confirmations: preview approved, originals on the team shared disk.
 
-backup   记录使用者已确认原件复制到团队共享硬盘（publish.py 生成网站数据前必须有；位置可选，不强制）。
 approve  在测试站看完预览后记录确认，绑定当前素材与元数据的指纹。
-check    部署正式站前检查：两项确认都在，且确认后素材、命名、manifest、说明.md 都没有再变。
+check    写正式站前检查：预览已确认，且确认后素材、命名、manifest、说明.md 都没有再变。
+backup   可选：记录使用者另外把原件复制到了团队共享硬盘。原件保全不靠这一步——
+         publish.py 写正式站时会把完整档案传到云端并逐个核对（cloud_archive.py）。
 """
 import argparse, datetime, hashlib
 from pathlib import Path
@@ -28,23 +29,19 @@ def load(activity):
 def backup(activity, confirmed_by, location=''):
     if not confirmed_by.strip(): raise ValueError('要写明是谁确认已备份')
     e=load(activity); e['sharedDiskBackup']={'confirmedBy':confirmed_by.strip(),'location':location.strip(),'confirmedAt':now()}
-    write(Path(activity)/CONFIRMATION,e); print('已记录：'+confirmed_by.strip()+' 确认原件已复制到团队共享硬盘')
-
-def require_backup(activity):
-    b=load(activity).get('sharedDiskBackup') or {}
-    if not b.get('confirmedAt'): raise ValueError('还没确认原件已复制到团队共享硬盘：复制好后运行 release_gate.py backup <活动> --confirmed-by <姓名>')
-    return b
+    write(Path(activity)/CONFIRMATION,e); print('已记录：'+confirmed_by.strip()+' 报告原件已复制到团队共享硬盘（脚本没有核对硬盘）')
 
 def approve(activity, preview, confirmed_by):
-    require_backup(activity); e=load(activity)
+    if not confirmed_by.strip(): raise ValueError('要写明是谁确认的预览')
+    e=load(activity)
     e.update(contentFingerprint=fingerprint(activity),previewApprovedAt=now(),previewUrl=preview,confirmedBy=confirmed_by)
     write(Path(activity)/CONFIRMATION,e); print('已记录预览确认。之后再改素材需要重新发布测试站并确认。')
 
 def check(activity):
-    b=require_backup(activity); e=load(activity)
-    if not e.get('previewApprovedAt'): raise ValueError('测试站预览还没确认，不能部署正式站')
+    e=load(activity); b=e.get('sharedDiskBackup') or {}
+    if not e.get('previewApprovedAt'): raise ValueError('测试站预览还没确认，不能写正式站')
     if e.get('contentFingerprint')!=fingerprint(activity): raise ValueError('确认之后素材或文字又改过，请重新预览并确认（release_gate.py approve）')
-    print('发布确认有效：预览已确认，原件已由 '+(b.get('confirmedBy') or '使用者')+' 备份到团队共享硬盘'); return e
+    print('发布确认有效：预览已由 '+str(e.get('confirmedBy') or '使用者')+' 确认'+('；'+b['confirmedBy']+' 另报告已复制到共享硬盘（未核对）' if b.get('confirmedBy') else '')); return e
 
 def main():
     p=argparse.ArgumentParser(description=__doc__); sub=p.add_subparsers(dest='cmd',required=True)
