@@ -178,7 +178,8 @@ for (const folder of options.folders) {
     const extension = path.extname(file.fullPath).toLowerCase();
     const body = fs.readFileSync(file.fullPath);
     const hash = crypto.createHash('sha256').update(body).digest('hex');
-    if (map[mapKey]?.hash === hash) { reused += 1; continue; }
+    // 同一份文件可能先传过测试图床；只有已在本次目标图床（--app）里的才跳过，否则正式站会引用测试图床的地址
+    if (map[mapKey]?.hash === hash && String(map[mapKey].url || '').includes(`/apps/${options.app}/`)) { reused += 1; continue; }
     if (options.dryRun) { uploaded += 1; continue; }
     try {
       const objectKey = `media/${hash}/${hash}${extension}`;

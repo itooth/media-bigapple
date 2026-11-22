@@ -54,8 +54,15 @@ function renderSource(uid, source) {
   for (const key of ['id', 'partner', 'sourceDate']) if (typeof event[key] !== 'string' || !event[key].trim()) throw failure(400, `活动缺少 ${key}`);
   return event;
 }
-// Append: same-path entries are replaced, new ones added; everything else in the source stays.
-const mergeByPath = (current = [], added = []) => [...current.filter((item) => !added.some((next) => next.path === item.path)), ...added];
+// Append: same-key entries are replaced, new ones added; items without a key never clobber each other.
+const mergeByKey = (current = [], added = [], keyOf = (item) => item?.path) => [
+  ...current.filter((item) => {
+    const key = keyOf(item);
+    return !key || !added.some((next) => keyOf(next) === key);
+  }),
+  ...added,
+];
+const caseKey = (item) => item?.folder || item?.path || item?.title || '';
 
 export function createApplication({ events, dataDir, distDir, adminPassword, secureCookies = false, origin = '', storageUrl = '', storageToken = '', worksDir = path.join(distDir, '..', 'works'), agentNotesFile = path.join(distDir, '..', 'agent', 'image-notes.json'), isTeamMember = resolveTeamMember }) {
   if (!adminPassword || adminPassword.length < 4 || adminPassword.length > 512 || adminPassword === 'replace-with-a-long-private-password') throw new Error('请通过 ADMIN_PASSWORD 设置 4–512 位的管理员密码');
@@ -170,7 +177,7 @@ export function createApplication({ events, dataDir, distDir, adminPassword, sec
         if (current.detail) throw failure(409, '这场活动是旧格式，请先用完整整理目录整场更新一次');
         if (![body?.assets, body?.cases, body?.videos, body?.social].some(Array.isArray)) throw failure(400, '没有要追加的素材');
         if ((body.assets || []).some((item) => item?.isCover === 1)) throw failure(400, '追加的照片不能带「封面」标记；要换封面请整场更新');
-        const next = { ...current, record: { ...current.record, videos: mergeByPath(current.record.videos, body.videos || []) }, assets: mergeByPath(current.assets, body.assets || []), cases: mergeByPath(current.cases, body.cases || []), social: [...(current.social || []).filter((item) => !(body.social || []).some((next) => next.href === item.href)), ...(body.social || [])] };
+        const next = { ...current, record: { ...current.record, videos: mergeByKey(current.record.videos, body.videos || []) }, assets: mergeByKey(current.assets, body.assets || []), cases: mergeByKey(current.cases, body.cases || [], caseKey), social: [...(current.social || []).filter((item) => !(body.social || []).some((next) => next.href === item.href)), ...(body.social || [])] };
         renderSource(uid, next);
         store.upsertActivity(next, actor);
         console.info('[api/activities] appended', { uid, actor, assets: body.assets?.length || 0, cases: body.cases?.length || 0, videos: body.videos?.length || 0 });

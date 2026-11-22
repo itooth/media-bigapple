@@ -214,6 +214,14 @@ test('team members add, update and append to one activity; it renders on read an
   // Append two photos; a cover mark is rejected because it would fight the existing cover.
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09500_封面_新.jpg', { isCover: 1 })] } })).status, 400);
   assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [photo('09000_讲解.jpg'), photo('09900_签到.jpg'), photo('06000_作品视频_演示.mp4')], videos: [{ path: '01_活动照片/06000_作品视频_演示.mp4', name: '06000_作品视频_演示.mp4' }] } })).status, 200);
+  // Append video-only cases (no screenshot path): must not overwrite each other by undefined path.
+  const vAsset = (p) => ({ name: p.split('/').pop(), path: p, url: `https://media.bigapple.app/${p}`, category: '案例', rating: 0, isCover: 0, onHomePage: 0 });
+  const vCaseA = { folder: '08490_旧视频作品', title: '旧视频作品', videos: [{ title: '旧视频作品', path: '02_案例/08490_旧视频作品/视频/a.mp4' }] };
+  const vCaseB = { folder: '08798_新视频作品', title: '新视频作品', videos: [{ title: '新视频作品', path: '02_案例/08798_新视频作品/视频/b.mp4' }] };
+  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [vAsset(vCaseA.videos[0].path)], cases: [vCaseA] } })).status, 200);
+  assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { assets: [vAsset(vCaseB.videos[0].path)], cases: [vCaseB] } })).status, 200);
+  const afterVideoCases = await (await f.request(`/api/site?event=${encodeURIComponent(newSource.uid)}`)).json();
+  assert.deepEqual(afterVideoCases.events[0].detail.productionVideos.map((v) => v.title), ['旧视频作品', '新视频作品']);
   for (let attempt = 0; attempt < 2; attempt++) {
     assert.equal((await f.request(url, { method: 'PATCH', headers: teamHeaders, body: { social: [{ label: '活动报道', href: 'https://example.test/report' }] } })).status, 200);
   }

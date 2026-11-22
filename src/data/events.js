@@ -41,7 +41,8 @@ export const activitySources = records.map((record) => ({
   ...(record.id === '08-22-ai-agent-17' ? { agentCatalog: agentProductionCatalog } : {}),
 }));
 
-export const allEvents = sortEvents(assignSlugs(activitySources.map(renderEvent), slugRegistry, { requireAllRegistered: true }));
+// Server-published activities may also be reserved in eventSlugs.json without existing in the bundled snapshot.
+export const allEvents = sortEvents(assignSlugs(activitySources.map(renderEvent), slugRegistry));
 export const eventMonths = Object.entries(allEvents.reduce((groups, event) => {
   const key = monthKey(event.sourceDate);
   (groups[key] ||= []).push(event);

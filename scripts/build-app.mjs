@@ -24,8 +24,8 @@ if (catalogPath) {
 if (!allEvents.length || new Set(allEvents.map((e) => e.uid)).size !== allEvents.length) throw new Error('Missing or duplicate activity identity');
 const registryPath = 'src/data/eventSlugs.json';
 const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
-allEvents = assignSlugs(allEvents, registry, { requireAllRegistered: true });
-const updatedRegistry = Object.fromEntries(allEvents.map(e => [e.uid, e.slug]));
+allEvents = assignSlugs(allEvents, registry);
+const updatedRegistry = { ...registry, ...Object.fromEntries(allEvents.map(e => [e.uid, e.slug])) };
 fs.mkdirSync('dist-server', { recursive: true });
 fs.writeFileSync('dist-server/events.json', JSON.stringify(allEvents));
 // The server stores sources and renders on read; events.json stays as the build's own check output.
