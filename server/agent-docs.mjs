@@ -47,9 +47,9 @@ export function eventItems(event, notes = {}) {
   return items;
 }
 
-const counts = (items) => {
+const counts = (items, workCount) => {
   const n = (keys) => items.filter((item) => keys.includes(item.section)).length;
-  return `照片 ${n(['gallery'])} · 作品 ${new Set(items.filter((i) => ['productions', 'productionGallery'].includes(i.section)).map((i) => i.title || i.url)).size} · 视频 ${n(['videos', 'productionVideos'])} · 报道 ${n(['media'])}`;
+  return `照片 ${n(['gallery'])} · 作品 ${workCount} · 视频 ${n(['videos', 'productionVideos'])} · 报道 ${n(['media'])}`;
 };
 const slugOf = (event) => event.slug || event.uid;
 const pageUrl = (origin, event) => origin + eventPath(event);
@@ -61,16 +61,16 @@ export function renderIndex(events, origin, notes = {}) {
     `> BigApple 与合作方举办的 AI 活动档案，共 ${events.length} 场，含现场照片、学员作品、视频和媒体报道。本文件是给 AI 助手读的文字版目录：不用运行网页，也不用下载图片。`, '',
     '## 怎么读', '',
     `- 单场活动的全部素材（每张图的描述和链接）：${origin}/agent/events/<slug>.md ，照片多时用 ?page=2 翻页`,
-    `- 全部案例（作品）一览：${origin}/agent/cases.md （每个案例的名称、简介、网址、封面和所属活动）`,
+    `- 全部案例（作品）一览：${origin}/agent/cases.md （每个案例的名称、简介、详细说明（如有）、网址、封面和所属活动）`,
     `- 按关键词找案例、活动和图片：${origin}/api/agent/search?q=关键词 （JSON。cases 和网页「案例」页的搜索结果一致：支持漏字、词序乱、全拼和首字母，如「光明大富」「dafuweng」「gmdfw」；events、images 要求每个词都出现）`,
     `- 单场活动原始数据：${origin}/api/site?event=<slug> （JSON）`,
     `- 给人看的网页：${origin}/events/<slug>`,
-    '- 图片链接可以直接打开，是网页展示用的压缩版。「描述」来自素材文件名；「看图」一栏是看过图片后写的画面说明，只有封面和精选图有。', '',
+    '- 图片链接可以直接打开，是网页展示用的压缩版。「描述」是整理时看过图片后写的一句画面说明。作品另有简介，部分作品还有详细说明。', '',
     '## 活动（按日期从新到旧）', '',
   ];
   for (const event of events) {
     const items = eventItems(event, notes);
-    const meta = [event.detail?.city, (event.tags || []).join('、'), counts(items)].map(clean).filter(Boolean).join('｜');
+    const meta = [event.detail?.city, (event.tags || []).join('、'), counts(items, buildCaseItems([event], { includeEventMedia: true }).length)].map(clean).filter(Boolean).join('｜');
     lines.push(`- [${clean(event.sourceDate)} ${clean(event.partner)}](${mdUrl(origin, event)})：${meta}。${clean(event.description)}`);
   }
   return lines.join('\n') + '\n';
@@ -88,21 +88,47 @@ const itemLine = (item, index) => {
   return `${index}. ${head}${extra ? `。${extra}` : ''}\n   ${item.url}`;
 };
 
+function workCard(work) {
+  const lines = [`### 《${clean(work.title)}》`];
+  if (work.summary) lines.push(`- 简介：${work.summary}`);
+  if (work.details) lines.push(`- 详细说明：${work.details.replaceAll('\n', '\n  ')}`);
+  if (work.href) lines.push(`- 作品地址：${work.href}`);
+  for (const slide of work.slides) {
+    const filename = slide.path?.split('/').at(-1)?.replace(/\.[^.]+$/, '');
+    const caption = filename || (slide.sourceCaption !== work.title && slide.sourceCaption) || '';
+    const words = caption.split('_').filter(word => !/^(?:主图|辅图|截图|\d+)$/u.test(word));
+    const { description } = parseCaption(words.join('_'));
+    const label = description ? `（${description}）` : '';
+    lines.push(`- 截图${label}：${slide.image}`);
+  }
+  for (const video of work.videos || []) {
+    lines.push(`- 视频：${video.src}${video.poster ? `\n  封面图：${video.poster}` : ''}`);
+  }
+  return lines.join('\n') + '\n';
+}
+
 export function renderEventDoc(event, origin, notes = {}, page = 1) {
   const items = eventItems(event, notes);
   const gallery = items.filter((item) => item.section === 'gallery');
   const pages = Math.max(1, Math.ceil(gallery.length / PAGE_SIZE));
   if (!Number.isInteger(page) || page < 1 || page > pages) return null;
+  const works = buildCaseItems([event], { includeEventMedia: true });
   const d = event.detail || {};
   const lines = [
     `# ${clean(d.title || event.partner)}`, '',
     `- 日期：${clean(d.date || event.sourceDate)}`, d.city && `- 地点：${clean(d.city)}`,
-    event.tags?.length && `- 标签：${event.tags.join('、')}`, `- 素材：${counts(items)}`,
+    event.tags?.length && `- 标签：${event.tags.join('、')}`, `- 素材：${counts(items, works.length)}`,
     `- 网页：${pageUrl(origin, event)}`, `- 原始数据：${origin}/api/site?event=${encodeURIComponent(slugOf(event))}`,
+    event.archive?.manifest && `- 完整档案（全部原片与整理记录）：${event.archive.manifest}`,
     event.image && `- 活动封面：${event.image}`, `- 返回目录：${origin}/llms.txt`, '',
     clean(d.summary || event.description), '',
   ].filter((line) => line !== false && line !== undefined && line !== null);
   for (const [key, label] of SECTIONS) {
+    if (key === 'productions') {
+      if (page === 1 && works.length) lines.push(`## 作品（${works.length}）`, '', ...works.map(workCard));
+      continue;
+    }
+    if (key === 'productionGallery' || key === 'productionVideos') continue;
     let list = items.filter((item) => item.section === key);
     if (!list.length) continue;
     if (key !== 'gallery' && page > 1) continue;
@@ -135,7 +161,7 @@ export function caseIndex(events) {
 function caseRecord(item, origin) {
   const event = { slug: item.eventSlug, uid: item.eventUid };
   return {
-    title: clean(item.title), description: clean(item.description), href: item.href || '',
+    title: clean(item.title), description: clean(item.summary), ...(item.details ? { details: item.details } : {}), href: item.href || '',
     image: item.image || '', images: item.slides.map((slide) => slide.image),
     video: item.video?.src || '', videoPoster: item.video?.poster || '',
     event: slugOf(event), eventTitle: clean(item.eventTitle), eventDate: clean(item.eventDate), eventCity: clean(item.eventCity),
@@ -157,7 +183,13 @@ export function renderCasesDoc(events, origin) {
     if (heading !== current) { lines.push('', heading, '', `活动文档：${record.doc}`, ''); current = heading; }
     const extra = [record.href && `网址：${record.href}`, record.image && `封面：${record.image}`,
       record.images.length > 1 && `截图 ${record.images.length} 张（见活动文档）`, record.video && `视频：${record.video}`].filter(Boolean).join('；');
-    lines.push(`- 《${cell(record.title)}》${record.description ? `：${record.description}` : ''}${extra ? `。${extra}` : ''}`);
+    const title = `- 《${cell(record.title)}》${record.description ? `：${record.description}` : ''}`;
+    if (record.details) {
+      lines.push(title, `  - 详细说明：${record.details.replaceAll('\n', '\n    ')}`);
+      if (extra) lines.push(`  - ${extra}`);
+    } else {
+      lines.push(title + (extra ? `。${extra}` : ''));
+    }
   }
   return lines.join('\n') + '\n';
 }

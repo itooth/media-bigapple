@@ -102,3 +102,59 @@ test('server exposes llms.txt, event documents, search and the injected page', a
   assert.equal(cases.status, 200); assert.match(await cases.text(), /^# BigApple Showcase 全部案例/);
   assert.deepEqual((await (await fetch(`${base}/api/agent/search?q=x`)).json()).cases, []);
 });
+
+const workReadme = '## 案例简介\r\n一起种花。\r\n\r\n## 详细说明\r\n浇水积攒露珠。\r\n还可以交换花种。\r\n## 提交组别\r\n园艺组';
+const workEvent = { ...event, detail: {
+  productions: [{ caseId: 'a', title: '花园', image: '/one', href: '/garden' }],
+  productionGallery: [
+    { caseId: 'a', title: '花园', image: '/one', path: '截图/10000_主图_花园全景_ec21d50a67.png', readme: workReadme },
+    { caseId: 'b', title: '花园（2）', image: '/two', path: '截图/09900_交换界面_08.jpg' },
+    { caseId: 'c', title: '旧作品', href: '/old' },
+  ],
+  productionVideos: [
+    { caseId: 'a', title: '开场', src: '/intro.mp4', poster: '/poster1' },
+    { caseId: 'b', title: '玩法', src: '/play.mp4', poster: '/poster2' },
+    { caseId: 'd', title: '短片', src: '/film.mp4', poster: '/poster3', readme: '## 详细说明\n延时摄影。' },
+  ],
+} };
+
+test('作品按卡列出每张截图、视频及封面，保留仅有链接和仅有视频的作品', () => {
+  const doc = renderEventDoc(workEvent, origin);
+  assert.match(doc, /## 作品（3）/);
+  assert.doesNotMatch(doc, /## 作品截图|## 作品视频|园艺组|未提供/);
+  const cards = doc.split('### 《').slice(1);
+  assert.equal(cards.length, 3);
+  assert.match(cards[0], /^花园》\n- 简介：一起种花。\n- 详细说明：浇水积攒露珠。\n  还可以交换花种。/);
+  for (const line of ['作品地址：/garden', '截图（花园全景）：/one', '截图（交换界面）：/two', '视频：/intro.mp4\n  封面图：/poster1', '视频：/play.mp4\n  封面图：/poster2']) {
+    assert.ok(cards[0].includes(line), line);
+  }
+  assert.equal(cards[0].split('/one').length, 2);
+  assert.match(cards[1], /^旧作品》\n- 作品地址：\/old\s*$/);
+  assert.match(cards[2], /^短片》\n- 详细说明：延时摄影。\n- 视频：\/film.mp4\n  封面图：\/poster3/);
+});
+
+test('案例总表及搜索均提供完整的详细说明', () => {
+  const cases = renderCasesDoc([workEvent], origin);
+  assert.match(cases, /《花园》：一起种花。\n  - 详细说明：浇水积攒露珠。\n    还可以交换花种。/);
+  assert.doesNotMatch(cases, /园艺组/);
+  const hits = searchArchive([workEvent], origin, '交换花种').cases;
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].description, '一起种花。');
+  assert.equal(hits[0].details, '浇水积攒露珠。\n还可以交换花种。');
+});
+
+test('怎么读解释图片描述与作品说明', () => {
+  assert.match(renderIndex([event], origin), /整理时看过图片后写的一句画面说明。作品另有简介，部分作品还有详细说明/);
+});
+
+test('完整档案从 source 原样传递，只在活动文档头部按需展示', async () => {
+  const { renderEvent } = await import('../src/lib/renderEvent.js');
+  const source = { record: { id: 'old', title: '活动', date: '2026-11-11' } };
+  const archive = { manifest: 'https://example.test/manifest.json', files: 8 };
+  const old = renderEvent(source);
+  assert.ok(!Object.hasOwn(old, 'archive'));
+  assert.doesNotMatch(renderEventDoc(old, origin), /完整档案/);
+  const current = renderEvent({ ...source, archive });
+  assert.equal(current.archive, archive);
+  assert.ok(renderEventDoc(current, origin).split('返回目录')[0].includes('完整档案（全部原片与整理记录）：' + archive.manifest));
+});
