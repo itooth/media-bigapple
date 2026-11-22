@@ -18,6 +18,8 @@ EXCLUDED = {'其他/发布确认.json'}  # 发布过程中会变的状态文件�
 FATAL = {401: '部署身份无效，重新运行 check_team_access.sh', 403: '不在团队部署白名单，把 ID 发给查理',
          413: '图床额度不足，停下告诉查理', 426: '「APP 部署专员」版本过旧，去技能页更新后重跑'}
 RETRY = {429, 500, 502, 503, 504}
+ATTEMPTS = 8
+WORKERS = 2  # 实测 6 路并发会被图床限流（429「当前任务过多」）；2 路稳定
 LEDGER_FIELDS = ('decision', 'decidedBy', 'chapter', 'subject', 'cover', 'homepage', 'originalName', 'order')
 TOP_FIELDS = ('eventType', 'chapters', 'chapterNotes', 'subjectNotes', 'selectionNote', 'orderSource')
 
@@ -67,7 +69,7 @@ def object_key(sha, name):
 
 def call(method, url, headers, data=None, length=None, timeout=600):
     """返回 (status, body)。致命错误直接抛；可重试的错误退避后重试。data 可以是 bytes 或文件路径。"""
-    for attempt in range(1, 6):
+    for attempt in range(1, ATTEMPTS + 1):
         body = open(data, 'rb') if isinstance(data, Path) else data
         extra = {'Content-Length': str(length)} if length is not None else {}
         try:
@@ -77,15 +79,15 @@ def call(method, url, headers, data=None, length=None, timeout=600):
             detail = exc.read().decode('utf-8', 'replace')[:200]
             if exc.code in FATAL:
                 raise CloudError(f'{FATAL[exc.code]}（HTTP {exc.code}：{detail}）') from exc
-            if exc.code not in RETRY or attempt == 5:
+            if exc.code not in RETRY or attempt == ATTEMPTS:
                 raise CloudError(f'{method} 失败（HTTP {exc.code}）：{detail}') from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
-            if attempt == 5:
+            if attempt == ATTEMPTS:
                 raise CloudError(f'连不上图床：{exc}。网络恢复后重跑，已传的会跳过') from exc
         finally:
             if isinstance(data, Path):
                 body.close()
-        time.sleep(attempt * 2)
+        time.sleep(min(60, 3 * 2 ** (attempt - 1)))  # 3、6、12…60 秒：图床限流（429）时要等得够久
 
 
 def list_objects(app, headers):
@@ -122,7 +124,7 @@ def verify_rows(rows, workers=16):
     return [r['path'] for r, size in zip(rows, sizes) if size != r['bytes']]
 
 
-def upload(activity_root, app, headers, workers=6, log=print):
+def upload(activity_root, app, headers, workers=WORKERS, log=print):
     root = Path(activity_root).resolve()
     manifest = build_manifest(root)
     rows = manifest['files']
