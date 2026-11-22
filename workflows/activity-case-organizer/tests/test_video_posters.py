@@ -46,6 +46,7 @@ class Frames(unittest.TestCase):
             self.assertGreater(V.frame_score(shots[best]), 0)
         manifest = json.loads((self.root / 'manifest.json').read_text())
         self.assertEqual(manifest['videoPosters'], {'01_活动照片/09000_活动视频_现场.mp4': '01_活动照片/视频封面/09000_活动视频_现场.poster.jpg'})
+        self.assertEqual(manifest['videoTitles'], {'01_活动照片/09000_活动视频_现场.mp4': '现场'})
         entries = json.loads((self.root / '其他/整理记录.json').read_text())['entries']
         self.assertEqual(len(entries), 2); self.assertTrue(all(e['review']['reviewed'] for e in entries))
         # 候选帧和总览图在活动目录外，不进 manifest、不上传。

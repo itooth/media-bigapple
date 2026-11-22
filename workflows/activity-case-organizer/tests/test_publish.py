@@ -64,6 +64,14 @@ class PreflightChecksTests(unittest.TestCase):
             publish_module.check_manifest(manifest)
         self.assertIn('title', str(ctx.exception))
 
+    def test_manifest_date_may_be_null_but_must_be_present_and_well_formed(self):
+        publish_module.check_manifest(make_manifest(date=None))
+        manifest = make_manifest(); manifest.pop('date')
+        with self.assertRaises(publish_module.PublishError):
+            publish_module.check_manifest(manifest)
+        with self.assertRaises(publish_module.PublishError):
+            publish_module.check_manifest(make_manifest(date='2026年11月'))
+
     def test_unready_selected_media_raises(self):
         media_map = {'media': [
             make_media_item('01_活动照片/a.jpg', status='needs-review'),
@@ -303,6 +311,38 @@ class VerifyBuildTests(unittest.TestCase):
             self.write_events(repo, [self.event(productions=[{'id': 'c', 'title': '苏兰', 'image': 'u'}])])
             publish_module.verify_build(repo, 'a', 1, False, {'gallery': 1, 'videos': 0, 'cases': ['苏兰']})
 
+    def test_video_only_case_and_posters_are_counted_correctly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            self.write_events(repo, [self.event(productionVideos=[{'id': 'v', 'title': '口播', 'src': 'v.mp4', 'poster': 'p.jpg'}])])
+            publish_module.verify_build(repo, 'a', 1, False, {'gallery': 1, 'videos': 0, 'cases': ['口播']})
+        media = {'media': [make_media_item('01_活动照片/09000_活动_a.jpg'), make_media_item('01_活动照片/视频封面/09000_活动视频_b.poster.jpg'), make_media_item('01_活动照片/09000_活动视频_b.mp4')]}
+        with tempfile.TemporaryDirectory() as tmp:
+            counts = publish_module.expected_counts(media, Path(tmp))
+        self.assertEqual((counts['gallery'], counts['videos']), (1, 1))
+
+    def test_append_ignores_empty_urls_on_old_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            old = {'id': 'old', 'title': '旧案例', 'image': '', 'path': '02_案例/旧/a.jpg'}
+            self.write_events(repo, [self.event(productionGallery=[old], productionVideos=[{'id': 'v', 'title': '新', 'src': 's', 'poster': 'p'}])])
+            expected = {'gallery': 1, 'videos': 0, 'cases': ['新'], 'paths': {'02_案例/新/视频/新.mp4'}}
+            publish_module.verify_build(repo, 'a', 1, False, expected, append=True)
+            with self.assertRaises(publish_module.PublishError):
+                publish_module.verify_build(repo, 'a', 1, False, expected, append=False)
+
+
+class AppendCaseTests(unittest.TestCase):
+    def test_video_only_case_cannot_be_appended(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '02_案例' / '08000_口播' / '视频').mkdir(parents=True)
+            (root / '02_案例' / '08000_口播' / '视频' / '口播.mp4').write_bytes(b'x')
+            with self.assertRaises(publish_module.PublishError):
+                publish_module.check_append_cases(root)
+            (root / '02_案例' / '08000_口播' / '截图').mkdir()
+            (root / '02_案例' / '08000_口播' / '截图' / '10000_主图_口播.jpg').write_bytes(b'x')
+            publish_module.check_append_cases(root)
 
 class RunStreamingTests(unittest.TestCase):
     def test_nonzero_exit_raises_chinese_error(self):

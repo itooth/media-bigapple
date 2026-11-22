@@ -60,9 +60,12 @@ class PublishError(RuntimeError):
 
 
 def check_manifest(manifest):
-    missing = [field for field in REQUIRED_MANIFEST_FIELDS if not manifest.get(field)]
+    # date 按数据契约「未知填 null」：必须写这个字段，可以是 null（如长期合集「其他案例」），不能编当天
+    missing = [field for field in REQUIRED_MANIFEST_FIELDS if field not in manifest or (field != "date" and not manifest.get(field))]
     if missing:
         raise PublishError(f"manifest.json 缺少必填字段：{'、'.join(missing)}")
+    if manifest["date"] is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(manifest["date"])):
+        raise PublishError(f"manifest.json 的 date 要写 YYYY-MM-DD，未知写 null：{manifest['date']}")
 
 
 def check_media_ready(media_map):
@@ -121,7 +124,11 @@ def load_site_activities(site):
 def deploy_skill_dir():
     """APP 部署专员通常和本 Skill 装在同一个 skills 目录；网站工程在别处，所以由这里找好再传给 upload-media.mjs。"""
     here = Path(__file__).resolve().parents[1]
-    for candidate in (os.environ.get("BIGAPPLE_DEPLOY_SKILL_DIR"), here.parent / "bigapple-deploy", Path.home() / ".claude" / "skills" / "bigapple-deploy"):
+    # 本 Skill 可能是指向 Git 真源的符号链接：既按安装位置（不解析链接）找兄弟目录，也按真实位置和当前项目找
+    installed = Path(os.path.abspath(sys.argv[0])).parents[1] if sys.argv and sys.argv[0].endswith("publish.py") else here
+    for candidate in (os.environ.get("BIGAPPLE_DEPLOY_SKILL_DIR"), installed.parent / "bigapple-deploy", here.parent / "bigapple-deploy",
+                      Path.cwd() / ".claude" / "skills" / "bigapple-deploy", Path.cwd() / ".agents" / "skills" / "bigapple-deploy",
+                      Path.home() / ".claude" / "skills" / "bigapple-deploy"):
         if candidate and (Path(candidate) / "bigapple" / "metadata.json").is_file():
             return Path(candidate).resolve()
     raise PublishError("找不到「APP 部署专员」Skill，请先在技能页安装它")
@@ -197,6 +204,16 @@ def check_activity_id_conflict(manifest, snapshot_manifests, folder_name):
                 f"活动 id 冲突：线上已有活动 {activity_id}（目录 {existing.get('folder')}），和本活动目录 {folder_name} 不是同一场。请换一个 id。"
             )
     return any(e.get("id") == activity_id and e.get("folder") == folder_name for e in snapshot_manifests or [])
+
+
+def check_append_cases(activity_root):
+    """服务器追加按案例的主图路径合并；只有视频、没有截图的案例没有这个路径，会互相顶掉，
+    包括这场线上原有的同类案例（2026-11-21 其他案例因此丢过 5 个作品视频）。服务器修好前，这类案例不走追加。"""
+    video_only = [d.name for d in case_directories(activity_root) if CASE_DIR_PATTERN.match(d.name)
+                  and not any(f.suffix.lower() in IMAGE_SUFFIXES for f in (d / "截图").glob("*"))]
+    if video_only:
+        raise PublishError("这批里有只有视频、没有截图的案例，追加会把线上同类案例顶掉：" + "、".join(video_only)
+                           + "\n请给它们补一张截图（如视频取帧作主图），或改用整场更新 / repair.py 修旧活动流程。")
 
 
 def case_directories(activity_root):
@@ -319,6 +336,20 @@ def check_similar_photos(activity_root, media_map):
                            "确实要都留，在 其他/整理记录.json 的 similarGroups 给这组写 keepAll 理由：\n- " + "\n- ".join(problems))
 
 
+def check_selection(activity_root, media_map):
+    """精选结构检查，与 archive.py apply 同一套规则（references/selection.md）。"""
+    from archive import selection_problems, format_problems
+    record = Path(activity_root) / "其他" / "整理记录.json"
+    if not record.is_file():
+        return
+    shown = {m["originalSha256"] for m in selected_website_ready_media(media_map) if m["originalPath"].startswith("01_活动照片/")}
+    errors, warnings = selection_problems(read_json(record), shown)
+    for w in warnings:
+        print("提醒：" + w)
+    if errors:
+        raise PublishError("精选检查没通过（规则见 references/selection.md）：\n- " + format_problems(errors))
+
+
 def check_web_targets(media_map):
     """展示副本进暂存时改名为 <活动目录>/<originalPath 按网站规则换扩展名>：检查重名；返回扩展名与网站不一致（透明 PNG）的素材。"""
     seen = {}
@@ -363,6 +394,7 @@ def run_preflight_checks(activity_root, manifest, media_map, snapshot_loader=Non
     check_publish_confirmation(activity_root)
     check_cases(activity_root, media_map)
     check_similar_photos(activity_root, media_map)
+    check_selection(activity_root, media_map)
     warn_or_raise(check_summary, append, manifest)
     warn_or_raise(check_videos, append, activity_root, manifest, media_map)
     transparent = check_web_targets(media_map)
@@ -495,10 +527,15 @@ def index_entries(repo, activity_id):
 def expected_counts(media_map, activity_root):
     ready = selected_website_ready_media(media_map)
     photos = [m for m in ready if m["originalPath"].startswith("01_活动照片/")]
-    gallery = [m for m in photos if Path(m["originalPath"]).suffix.lower() in IMAGE_SUFFIXES]
+    # 视频封面上传到图床但不进相册（archive-contract.md「活动目录」）
+    gallery = [m for m in photos if Path(m["originalPath"]).suffix.lower() in IMAGE_SUFFIXES and not is_video_poster(m["originalPath"], m.get("role"))]
     videos = [m for m in photos if Path(m["originalPath"]).suffix.lower() in VIDEO_SUFFIXES]
     cases = [case_title(d.name) for d in case_directories(activity_root) if CASE_DIR_PATTERN.match(d.name)]
-    return {"gallery": len(gallery), "videos": len(videos), "cases": cases}
+    return {"gallery": len(gallery), "videos": len(videos), "cases": cases, "paths": {checks.web_path(m["originalPath"]) for m in ready}}
+
+
+def is_video_poster(path, role=None):
+    return role == "video-poster" or "/视频封面/" in str(path) or str(path).endswith(".poster.jpg")
 
 
 def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None, index_id=None, append=False):
@@ -519,6 +556,9 @@ def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None
         detail = event.get("detail", {})
         for key in ("gallery", "highlights", "productionGallery"):
             for item in detail.get(key, []):
+                # 追加时构建产物里还有这场的旧条目，只看这批新素材
+                if append and expected and expected.get("paths") is not None and checks.web_path(item.get("path")) not in expected["paths"]:
+                    continue
                 if "image" in item and not item.get("image"):
                     empty_image_urls.append(f"{key}:{item.get('id')}")
         if expected is None:
@@ -531,18 +571,19 @@ def verify_build(repo, activity_id, expected_event_count, dry_run, expected=None
             if len(detail.get("videos", [])) != expected["videos"]:
                 problems.append(f"活动视频 videos 有 {len(detail.get('videos', []))} 个，归档里选中的是 {expected['videos']} 个")
         has_image = {}
-        for key in ("productions", "productionGallery"):
+        for key in ("productions", "productionGallery", "productionVideos"):
             for item in detail.get(key, []):
                 title = item.get("title") or item.get("caption")
-                has_image[title] = has_image.get(title, False) or bool(item.get("image"))
+                # 只有视频的案例（archive-contract.md「视频放哪」）出现在 productionVideos，图片是视频封面
+                has_image[title] = has_image.get(title, False) or bool(item.get("image") or (key == "productionVideos" and item.get("src") and item.get("poster")))
         for title in expected["cases"]:
             if title not in has_image:
-                problems.append(f"案例「{title}」没有出现在 productions / productionGallery（网站丢弃了它）")
+                problems.append(f"案例「{title}」没有出现在 productions / productionGallery / productionVideos（网站丢弃了它）")
             elif not has_image[title] and not dry_run:
                 problems.append(f"案例「{title}」没有图片 url")
     if expected is not None and index_id:
         photos = [e for e in index_entries(repo, index_id) if e["path"].startswith("01_活动照片/")]
-        index_images = [e for e in photos if Path(e["path"]).suffix.lower() in IMAGE_SUFFIXES]
+        index_images = [e for e in photos if Path(e["path"]).suffix.lower() in IMAGE_SUFFIXES and not is_video_poster(e["path"], e.get("role"))]
         index_videos = [e for e in photos if Path(e["path"]).suffix.lower() in VIDEO_SUFFIXES]
         if len(index_images) != expected["gallery"]:
             problems.append(f"媒体索引里活动照片 {len(index_images)} 张，归档里选中的是 {expected['gallery']} 张")
@@ -576,6 +617,8 @@ def publish(activity_root, repo, web_root, app, dry_run, append=False):
     )
 
     activity_id = manifest.get("uid") or manifest["id"]
+    if append:
+        check_append_cases(activity_root)
     if append and not is_update:
         raise PublishError(f"{site} 上还没有这场活动（目录 {activity_folder_name}、id {manifest['id']}），不能追加。新活动去掉 --append 整场发布；补素材要让目录名和 id 与原活动一致。")
     expected = expected_counts(media_map, activity_root)

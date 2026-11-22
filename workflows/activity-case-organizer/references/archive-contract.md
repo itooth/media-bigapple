@@ -11,9 +11,9 @@ python3 "$SKILL/scripts/archive.py" mirror /素材库/活动 /网站压缩素材
 ```
 
 1. `scan` 只盘点，计划写在输入目录外。
-2. 助手实看后在计划里给每个 entry 填 `targetPath`（按下面的目录和命名）和 `review`（`reviewed: true`、`evidence` 写实看到的内容）。`01_活动照片/` 里的图都会进相册；海报、logo 不想展示就放 `其他/`。拿不准的也放 `其他/`，写明原因。
-3. 处理计划里的 `similarGroups`（画面几乎一样但字节不同的照片组）：每组只留一张进 `01_活动照片/`，其余 `targetPath` 改到 `其他/相似连拍/`；确实要都留，给这组加 `"keepAll": "理由"`。
-4. `apply` 复制到活动目录，输入原件保留；有没处理的相似组会拒绝。
+2. 照片：`curate.py sheets` 出拼图，实看后给每个 entry 填 `review`（`reviewed: true`、`evidence` 一句话写看到的内容，唯一真源）、`decision`、`chapter`、`subject`，在计划顶层写 `eventType`、`chapters`，再跑 `curate.py name` 自动生成 `targetPath`，规则见 [精选方法](selection.md)。其他素材（视频、案例截图、资料）照旧按下面的目录和命名手填 `targetPath`。`01_活动照片/` 里的图都会进相册；海报、logo 不想展示就放 `其他/`。拿不准的也放 `其他/`，写明原因。
+3. 计划里的 `similarGroups` 是拍摄顺序相邻、画面几乎一样的连拍候选（每组 ≤8 张）。同一瞬间只留一张，其余标 `burst-alt` 并写 `representative`；确实是不同瞬间要都留，给这组加 `"keepAll": "理由"`。然后跑 `curate.py coverage` 和 `curate.py html` 生成覆盖表和全量审阅页。
+4. `apply` 复制到活动目录，输入原件保留；相似组没处理、精选检查不过（见 selection.md 第 6 节）会拒绝。审阅后改了取舍，改计划再跑 `curate.py name` 和 `apply`，文件会挪到新位置。
 5. **改 manifest.json**：`apply` 生成的 `id` 是随机 UUID，不能发布。`id` 改成 `MM-DD-英文或拼音短名`（如 `10-28-yiwu-ai-class`），不能和网站上已有活动重复（`curl -s https://media.bigapple.work/api/site` 看各活动的 `id`）；`uid` 设为活动目录名。同时填 `title`、`date`（YYYY-MM-DD，未知填 null，不填当天）、`venue`、`summary`。`summary` 是网站上给人看的一句话（这场做了什么），不超过 20 字，不能写「××活动资料与成员作品归档」这类模板句，向实习生要；细节写进案例 `说明.md` 的「详细说明」。`publish.py` 超字数或模板句会拦。
 6. **视频封面**：`video_posters.py frames <活动目录>` 给每个还没封面的视频在 8%–78% 处抽 6 帧，自动挑最清晰的一张，写好封面文件、`整理记录.json` 和 manifest 的 `videoPosters`，并在活动目录外 `.视频封面候选/<活动>/总览.jpg` 出一张总览图（绿框是自动选中）。必须实看总览图：选中帧是背影、糊帧、转场、黑场或看不出内容时，用 `video_posters.py pick <活动目录> <视频相对路径> <编号>` 换成最能说明这段视频的一帧。
 7. `mirror` 生成网站展示副本和 `媒体映射.json`。有待审素材时返回 `pendingOrFailed`，属正常中间态，补完 review 再跑。

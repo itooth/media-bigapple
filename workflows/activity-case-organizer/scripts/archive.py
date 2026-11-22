@@ -48,31 +48,75 @@ def known_judgments(archives):
 # Bursts and re-saved copies look the same but differ in bytes, so sha256 cannot catch them.
 # dHash distance <= SIMILAR_MAX lists candidates; a person or model still looks and picks.
 SIMILAR_MAX=18
+# 连拍 = 同一瞬间的重复。只在拍摄顺序相邻的照片里找，且必须和组里每一张都像（全连接），
+# 否则舞台背景相同的签到、路演、颁奖会被 A像B、B像C 串成一个几百张的大组（一场 441 张的大赛曾串出 307 张）。
+BURST_MAX=8       # 一组最多 8 张；同一瞬间很少连拍更多，超过说明已经是不同瞬间
+BURST_WINDOW=12   # 只和拍摄顺序前后 12 张以内的照片比较
+TIME_GAP=120      # 有拍摄时间时，相隔超过 120 秒不算同一瞬间
+SEQ_GAP=20        # 只有相机文件序号（如 LIY_2661）时，序号相差超过 20 不算同一瞬间
+SIDECAR='来源元数据.json'  # 可选：{"相对路径或文件名": {"capturedAt": "ISO 时间", "originalName": "LIY_2661.JPG"}}
+TIME_KINDS={'exif','sidecar-time','filename-time'}
+FILENAME_TIME=re.compile(r'(20\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})')
+CAMERA_SEQ=re.compile(r'(?<![A-Za-z])([A-Za-z]{2,5})_?(\d{3,6})(?!\d)')
 def dhash(p):
     from PIL import Image, ImageOps
     with Image.open(p) as im:
-        im=ImageOps.exif_transpose(im); ratio=im.width/im.height
+        im=ImageOps.exif_transpose(im); ratio=im.width/max(im.height,1)
         px=im.convert('L').resize((9,8)).tobytes()
     return sum(1<<(r*8+c) for r in range(8) for c in range(8) if px[r*9+c]>px[r*9+c+1]), ratio
+def capture_keys(source, paths):
+    """拍摄顺序。依据按可靠程度取第一个能覆盖全部照片的：EXIF 时间 > 来源元数据时间 > 文件名时间戳 > 相机文件序号 > 文件名顺序。"""
+    sidecar=Path(source,SIDECAR); meta=read(sidecar) if sidecar.is_file() else {}
+    info=lambda p: meta.get(p) or meta.get(Path(p).name) or {}
+    def exif(p):
+        try:
+            from PIL import Image
+            with Image.open(Path(source,p)) as im:
+                ex=im.getexif(); t=ex.get_ifd(0x8769).get(36867) or ex.get(306)
+            return datetime.datetime.strptime(str(t).strip(),'%Y:%m:%d %H:%M:%S').timestamp() if t else None
+        except Exception: return None
+    def sidecar_time(p):
+        try: return datetime.datetime.fromisoformat(str(info(p)['capturedAt']).replace('Z','+00:00')).timestamp()
+        except (KeyError,ValueError): return None
+    def filename_time(p):
+        m=FILENAME_TIME.search(Path(p).name)
+        try: return datetime.datetime(*map(int,m.groups())).timestamp() if m else None
+        except ValueError: return None
+    def camera_seq(p):
+        m=CAMERA_SEQ.search(Path(info(p).get('originalName') or p).stem)
+        return (m.group(1).upper(),int(m.group(2))) if m else None
+    for kind,fn in (('exif',exif),('sidecar-time',sidecar_time),('filename-time',filename_time),('camera-sequence',camera_seq)):
+        keys={p:fn(p) for p in paths}
+        if paths and all(v is not None for v in keys.values()): return kind,keys
+    return 'source-order',{p:i for i,p in enumerate(sorted(paths))}
 def similar_groups(source, entries, previous=()):
-    seen=set(); points=[]
+    """返回 (排序依据, {路径: 顺序}, 连拍组)。"""
+    seen=set(); paths=[]
     for e in entries:
         if Path(e['sourcePath']).suffix.lower() not in IMAGE or e['sha256'] in seen: continue
-        seen.add(e['sha256'])
-        try: points.append((e['sourcePath'],*dhash(Path(source,e['sourcePath']))))
+        seen.add(e['sha256']); paths.append(e['sourcePath'])
+    kind,keys=capture_keys(source,paths)
+    ordered=sorted(paths,key=lambda p:(keys[p],p)); rank={p:i for i,p in enumerate(ordered)}
+    points={}
+    for p in ordered:
+        try: points[p]=dhash(Path(source,p))
         except Exception: continue  # unreadable here (e.g. HEIC without plugin); visual review still applies
-    parent={p[0]:p[0] for p in points}
-    def root(x):
-        while parent[x]!=x: x=parent[x]
-        return x
-    for i,(a,ha,ra) in enumerate(points):
-        for b,hb,rb in points[i+1:]:
-            if abs(ra-rb)<0.05 and bin(ha^hb).count('1')<=SIMILAR_MAX: parent[root(b)]=root(a)
-    groups={}
-    for p in parent: groups.setdefault(root(p),[]).append(p)
+    def close(a,b):
+        if abs(rank[a]-rank[b])>BURST_WINDOW: return False
+        if kind in TIME_KINDS and abs(keys[a]-keys[b])>TIME_GAP: return False
+        if kind=='camera-sequence' and (keys[a][0]!=keys[b][0] or abs(keys[a][1]-keys[b][1])>SEQ_GAP): return False
+        (ha,ra),(hb,rb)=points[a],points[b]
+        return abs(ra-rb)<0.05 and bin(ha^hb).count('1')<=SIMILAR_MAX
+    groups=[]
+    for p in ordered:
+        if p not in points: continue
+        home=next((g for g in reversed(groups) if rank[p]-rank[g[-1]]<=BURST_WINDOW and len(g)<BURST_MAX and all(close(p,q) for q in g)),None)
+        if home: home.append(p)
+        else: groups.append([p])
     kept={frozenset(g['members']):g.get('keepAll') for g in previous}
     sha={e['sourcePath']:e['sha256'] for e in entries}
-    return [{'members':sorted(m),'sha256':[sha[x] for x in sorted(m)],**({'keepAll':kept[frozenset(m)]} if kept.get(frozenset(m)) else {})} for m in groups.values() if len(m)>1]
+    result=[{'members':sorted(m),'sha256':[sha[x] for x in sorted(m)],**({'keepAll':kept[frozenset(m)]} if kept.get(frozenset(m)) else {})} for m in groups if len(m)>1]
+    return kind,rank,result
 def unresolved_similar(plan):
     by={e['sourcePath']:e for e in plan['entries']}
     bad=[]
@@ -80,6 +124,65 @@ def unresolved_similar(plan):
         shown=[m for m in g['members'] if m in by and (by[m].get('targetPath') or '').startswith('01_活动照片/') and by[m].get('selected',True)]
         if len(shown)>1 and not str(g.get('keepAll') or '').strip(): bad.append(shown)
     return bad
+
+# 精选检查（规则说明见 references/selection.md）。只查结构，不评判文笔；最终由人在全量审阅页把关。
+DECISIONS={'selected','burst-alt','reject-technical','archive'}
+EVIDENCE_MAX=40          # 描述就是入选照片在网站上的名称，一句话
+EVIDENCE_REPEAT_MAX=3    # 同一句描述最多给 3 个不同瞬间；一句话套一整段区间（曾有一句套 103 张）会被拦
+COVERAGE_MIN_PHOTOS=30   # 活动照片超过 30 张，必须写章节、逐张写 decision，并逐章逐主体覆盖
+RATIO_MIN_PHOTOS=100     # 超过 100 张才看入选比例
+RATIO_ALERT=(0.08,0.35)  # 超过 100 张且超出此比例，须写 selectionNote 说明原因
+def activity_photos(plan):
+    """活动照片：没分到案例和社交媒体的图片，按拍摄顺序。"""
+    es=[e for e in plan['entries'] if Path(e['sourcePath']).suffix.lower() in IMAGE and not str(e.get('targetPath') or '').startswith(('02_案例/','03_社交媒体/'))]
+    return sorted(es,key=lambda e:(e.get('order',10**9),e['sourcePath']))
+def selection_problems(plan, shown_sha=None):
+    """返回 (拦截, 提醒)。shown_sha：发布时按媒体映射里真正入选的内容哈希判断，避免人工改名后误报。"""
+    if (plan.get('selectionVersion') or 0)<2: return [],[]
+    photos=[e for e in activity_photos(plan) if 'inheritedFrom' not in e]
+    by={e['sourcePath']:e for e in plan['entries']}
+    group={m:i for i,g in enumerate(plan.get('similarGroups',[])) for m in g['members']}
+    shown=(lambda e:e['sha256'] in shown_sha) if shown_sha is not None else (lambda e:str(e.get('targetPath') or '').startswith('01_活动照片/') and e.get('selected',True))
+    big=len(photos)>COVERAGE_MIN_PHOTOS; errors=[]; warnings=[]; texts={}
+    chapters=plan.get('chapters') or []
+    for e in photos:
+        p=e['sourcePath']; ev=str((e.get('review') or {}).get('evidence') or '').strip(); d=e.get('decision')
+        if not ev: errors.append(f'{p} 没写描述 review.evidence'); continue
+        if len(ev)>EVIDENCE_MAX: errors.append(f'{p} 的描述超过 {EVIDENCE_MAX} 字：{ev}')
+        texts.setdefault(ev,[]).append(p)
+        if d is None and big: errors.append(f'{p} 没写 decision')
+        elif d is not None and d not in DECISIONS: errors.append(f'{p} 的 decision「{d}」不认识，只能是 {"/".join(sorted(DECISIONS))}')
+        if d=='selected' and not shown(e): errors.append(f'{p} 标了 selected 却没进 01_活动照片/，先跑 curate.py name')
+        if d in DECISIONS-{'selected'} and shown(e): errors.append(f'{p} 标了 {d} 却在 01_活动照片/')
+        if d=='burst-alt':
+            r=by.get(e.get('representative') or '')
+            if not r: errors.append(f'{p} 是连拍备选，representative 要写留下那张的 sourcePath')
+            elif not shown(r): errors.append(f'{p} 的代表照 {r["sourcePath"]} 没有入选')
+        if big and chapters and e.get('chapter') not in chapters: errors.append(f'{p} 的 chapter「{e.get("chapter")}」不在 chapters 清单里')
+    for ev,ps in texts.items():
+        if len({group.get(p,p) for p in ps})>EVIDENCE_REPEAT_MAX:
+            errors.append(f'同一句描述「{ev}」用在 {len(ps)} 张照片上：每张写自己看到的内容（同一连拍组内可以相同）')
+    if big:
+        if not chapters: errors.append(f'活动照片超过 {COVERAGE_MIN_PHOTOS} 张：在计划里写 chapters（按时间顺序的章节清单）')
+        notes=plan.get('chapterNotes') or {}; subject_notes=plan.get('subjectNotes') or {}
+        for c in chapters:
+            if not any(e.get('chapter')==c and shown(e) for e in photos) and not str(notes.get(c) or '').strip():
+                errors.append(f'章节「{c}」没有入选照片：选一张，或在 chapterNotes 写原因（如「素材中未见」）')
+        subjects={}
+        for e in photos:
+            if str(e.get('subject') or '').strip(): subjects[e['subject']]=subjects.get(e['subject'],False) or shown(e)
+        for s,ok in subjects.items():
+            if not ok and not str(subject_notes.get(s) or '').strip(): errors.append(f'主体「{s}」没有任何一张入选：选一张，或在 subjectNotes 写原因')
+    n=sum(shown(e) for e in photos)
+    if len(photos)>RATIO_MIN_PHOTOS and not RATIO_ALERT[0]<=n/len(photos)<=RATIO_ALERT[1]:
+        msg=f'入选 {n}/{len(photos)} 张（{n/len(photos):.0%}），超出常见范围 {RATIO_ALERT[0]:.0%}–{RATIO_ALERT[1]:.0%}'
+        if str(plan.get('selectionNote') or '').strip():
+            warnings.append(f'{msg}（说明：{plan["selectionNote"]}）')
+        else:
+            errors.append(f'{msg}：先按章节额度复核精简，确需保留则在计划顶层写 selectionNote 说明原因')
+    return errors,warnings
+def format_problems(errors, limit=40):
+    return '\n- '.join(errors[:limit])+(f'\n- ……另有 {len(errors)-limit} 条' if len(errors)>limit else '')
 
 def scan(source, plan_path, archives=None):
     source=Path(source).resolve(); target=Path(plan_path).resolve()
@@ -111,15 +214,27 @@ def scan(source, plan_path, archives=None):
         if others: e['duplicates']=others
         else: e.pop('duplicates',None)
     missing=[e for e in old['entries'] if e['sha256'] not in {x['sha256'] for x in entries}]
-    similar=similar_groups(source,entries,old.get('similarGroups',[]))
-    old.update(sourceRoot=str(source),entries=entries,missing=missing,similarGroups=similar,scannedAt=now()); write(target,old)
-    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'duplicateGroups':[v for v in groups.values() if len(v)>1],'missing':len(missing),'similarGroups':[g['members'] for g in similar]},ensure_ascii=False))
+    kind,rank,similar=similar_groups(source,entries,old.get('similarGroups',[]))
+    first={}
+    for e in entries: first.setdefault(e['sha256'],e['sourcePath'])
+    for e in entries:
+        if first[e['sha256']] in rank: e['order']=rank[first[e['sha256']]]
+    old.setdefault('selectionVersion',2)
+    old.update(sourceRoot=str(source),entries=entries,missing=missing,similarGroups=similar,orderSource=kind,scannedAt=now()); write(target,old)
+    print(json.dumps({'files':len(entries),'pending':sum(not e.get('targetPath') for e in entries),'inherited':sum('inheritedFrom' in e for e in entries),'duplicateGroups':[v for v in groups.values() if len(v)>1],'missing':len(missing),'orderSource':kind,'similarGroups':[g['members'] for g in similar]},ensure_ascii=False))
 
 def apply(plan_path, activity):
     plan=read(plan_path); root=Path(activity).resolve(); source=Path(plan['sourceRoot']).resolve()
     if root.is_relative_to(source) or source.is_relative_to(root): raise ValueError('输入与正式归档目录须分开')
     bad=unresolved_similar(plan)
     if bad: raise ValueError('相似照片每组只留一张进 01_活动照片/，其余放 其他/相似连拍/；确实要都留，就在计划 similarGroups 里给这组写 keepAll 理由：\n'+'\n'.join(' / '.join(g) for g in bad))
+    errors,warnings=selection_problems(plan)
+    if errors: raise ValueError('精选检查没通过（规则见 references/selection.md）：\n- '+format_problems(errors))
+    for w in warnings: print('提醒：'+w)
+    record=root/'其他/整理记录.json'; earlier=read(record) if record.exists() else None
+    placed={}
+    for x in (earlier or {}).get('entries',[]):
+        if x.get('targetPath'): placed.setdefault(x['sha256'],[]).append(x['targetPath'])
     operations=[]; targets=set()
     for e in plan['entries']:
         rel=e.get('targetPath')
@@ -130,13 +245,18 @@ def apply(plan_path, activity):
         targets.add(rel)
         if dest.exists() and digest(dest)!=e['sha256']: raise ValueError('人工文件已修改，拒绝覆盖: '+rel)
         operations.append((src,dest,e))
+    moved=set()
     for src,dest,e in operations:
         dest.parent.mkdir(parents=True,exist_ok=True)
-        if not dest.exists(): shutil.copy2(src,dest)
-    record=root/'其他/整理记录.json'; merged={**plan,'appliedAt':now()}
-    if record.exists():
-        earlier=read(record); current={e['targetPath'] for e in plan['entries']}
-        kept=[e for e in earlier['entries'] if e.get('targetPath') not in current]
+        if dest.exists(): continue
+        # 审阅后改了取舍（如把连拍备选恢复入选）：把上次放好的同一文件挪过去，不留两份，旧位置不再进相册
+        old=[t for t in placed.get(e['sha256'],[]) if t!=e['targetPath'] and t not in targets and t not in moved and inside(root,t).is_file() and digest(inside(root,t))==e['sha256']]
+        if old: inside(root,old[0]).rename(dest); moved.add(old[0])
+        else: shutil.copy2(src,dest)
+    merged={**plan,'appliedAt':now()}
+    if earlier:
+        current={e['targetPath'] for e in plan['entries']}
+        kept=[e for e in earlier['entries'] if e.get('targetPath') not in current and e.get('targetPath') not in moved]
         merged['entries']=kept+plan['entries']; merged['similarGroups']=list({tuple(g.get('sha256') or g['members']):g for g in earlier.get('similarGroups',[])+plan.get('similarGroups',[])}.values()); merged['batches']=earlier.get('batches',[{'id':earlier.get('id'),'sourceRoot':earlier.get('sourceRoot'),'appliedAt':earlier.get('appliedAt')}])
     merged.setdefault('batches',[]).append({'id':plan['id'],'sourceRoot':plan['sourceRoot'],'appliedAt':merged['appliedAt']})
     write(record,merged)

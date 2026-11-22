@@ -12,7 +12,7 @@
   video_posters.py pick <活动目录> <视频相对路径> <候选编号>   看总览图后换成指定候选帧
 之后照常跑 archive.py mirror，封面会和照片一起进展示副本并上传。
 """
-import argparse, datetime, hashlib, json, shutil, subprocess, sys, tempfile
+import re, argparse, datetime, hashlib, json, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 VIDEO = {'.mp4', '.mov', '.m4v', '.webm', '.mkv'}
@@ -152,6 +152,10 @@ def register(root, video_rel, poster, evidence):
     if rel.startswith('01_活动照片/'):
         manifest = read(root / 'manifest.json')
         manifest.setdefault('videoPosters', {})[video_rel] = rel
+        # 文件名按契约是「分数_活动视频_描述」，网站标题只要描述；人工写过的标题不覆盖
+        titles = manifest.setdefault('videoTitles', {})
+        if not titles.get(video_rel):
+            titles[video_rel] = re.sub(r'^([^_]{0,4}_)?[^_]{0,4}视频_', '', re.sub(r'^\d{5}_', '', Path(video_rel).stem)).replace('_', ' ') or Path(video_rel).stem
         write(root / 'manifest.json', manifest)
 
 

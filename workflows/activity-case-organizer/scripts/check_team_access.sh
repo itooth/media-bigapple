@@ -6,7 +6,8 @@ set -euo pipefail
 
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_SKILL_DIR="${BIGAPPLE_DEPLOY_SKILL_DIR:-}"
-for candidate in "$DEPLOY_SKILL_DIR" "$SKILL_ROOT/../bigapple-deploy" "$HOME/.claude/skills/bigapple-deploy"; do
+# 本 Skill 可能是指向 Git 真源的符号链接：$(dirname "$SKILL_ROOT") 按安装位置找兄弟目录，"$SKILL_ROOT/.." 会被系统解析到真源旁边
+for candidate in "$DEPLOY_SKILL_DIR" "$(dirname "$SKILL_ROOT")/bigapple-deploy" "$SKILL_ROOT/../bigapple-deploy" "$PWD/.claude/skills/bigapple-deploy" "$PWD/.agents/skills/bigapple-deploy" "$HOME/.claude/skills/bigapple-deploy"; do
   if [[ -n "$candidate" && -f "$candidate/scripts/deployment-auth.sh" ]]; then DEPLOY_SKILL_DIR="$candidate"; break; fi
 done
 if [[ ! -f "$DEPLOY_SKILL_DIR/scripts/deployment-auth.sh" ]]; then
